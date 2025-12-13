@@ -29,7 +29,7 @@ class InviterInfo(_PluginBase):
     # 插件图标
     plugin_icon = "user.png"
     # 插件版本
-    plugin_version = "1.6"
+    plugin_version = "1.7"
     # 插件作者
     plugin_author = "MoviePilot"
     # 作者主页
@@ -269,45 +269,48 @@ class InviterInfo(_PluginBase):
         logger.info(f"构建表格，包含 {len(table_rows)} 行数据")
         
         return [
-            {
-                "component": "VCard",
-                "props": {"class": "mb-4"},
-                "content": [
-                    {"component": "VCardTitle", "props": {"title": "PT站邀请人信息统计"}},
-                    {
-                        "component": "VCardActions",
-                        "props": {"class": "px-4 py-2"},
-                        "content": [
-                            {
-                                "component": "VBtn",
-                                "props": {
-                                    "color": "error",
-                                    "text": True,
-                                    "onClick": "invokePluginApi('inviterinfo', 'abort_run')"
-                                },
-                                "content": "中止运行"
-                            }
-                        ]
-                    },
-                    {
-                        "component": "VCardText",
-                        "content": [
-                            {
-                                "component": "VDataTable",
-                                "props": {
-                                    "columns": table_columns,
-                                    "items": table_rows,
-                                    "dense": True,
-                                    "hide-default-footer": True,
-                                    "fixed-header": True,
-                                    "height": "600"
+                {
+                    "component": "VCard",
+                    "props": {"class": "mb-4"},
+                    "content": [
+                        {
+                            "component": "VCardTitle",
+                            "content": "PT站邀请人信息统计"
+                        },
+                        {
+                            "component": "VCardActions",
+                            "props": {"class": "px-4 py-2"},
+                            "content": [
+                                {
+                                    "component": "VBtn",
+                                    "props": {
+                                        "color": "error",
+                                        "text": True,
+                                        "click": "invokePluginApi('inviterinfo', 'abort_run')"
+                                    },
+                                    "content": "中止运行"
                                 }
-                            }
-                        ]
-                    }
-                ]
-            }
-        ]
+                            ]
+                        },
+                        {
+                            "component": "VCardText",
+                            "content": [
+                                {
+                                    "component": "VDataTable",
+                                    "props": {
+                                        "headers": table_columns,
+                                        "items": table_rows,
+                                        "dense": True,
+                                        "hide-default-footer": True,
+                                        "fixed-header": True,
+                                        "height": "600px"
+                                    }
+                                }
+                            ]
+                        }
+                    ]
+                }
+            ]
 
     def __get_all_site_inviter_info(self) -> Dict[str, Dict[str, Any]]:
         """
