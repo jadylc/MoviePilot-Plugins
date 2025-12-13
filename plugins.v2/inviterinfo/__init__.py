@@ -296,15 +296,84 @@ class InviterInfo(_PluginBase):
                             "component": "VCardText",
                             "content": [
                                 {
-                                    "component": "VDataTable",
+                                    "component": "VTable",
                                     "props": {
-                                        "headers": table_columns,
-                                        "items": table_rows,
-                                        "dense": True,
-                                        "hide-default-footer": True,
-                                        "fixed-header": True,
-                                        "height": "600px"
-                                    }
+                                        "hover": True,
+                                        "density": "compact",
+                                        "class": "site-invitees-table text-caption"
+                                    },
+                                    "content": [
+                                        {
+                                            "component": "thead",
+                                            "content": [
+                                                {
+                                                    "component": "tr",
+                                                    "content": [
+                                                        {
+                                                            "component": "th",
+                                                            "props": {"class": "text-caption", "style": "white-space: nowrap; padding: 4px 8px;"},
+                                                            "text": "站点名称"
+                                                        },
+                                                        {
+                                                            "component": "th",
+                                                            "props": {"class": "text-caption", "style": "white-space: nowrap; padding: 4px 8px;"},
+                                                            "text": "邀请人"
+                                                        },
+                                                        {
+                                                            "component": "th",
+                                                            "props": {"class": "text-caption", "style": "white-space: nowrap; padding: 4px 8px;"},
+                                                            "text": "邀请人ID"
+                                                        },
+                                                        {
+                                                            "component": "th",
+                                                            "props": {"class": "text-caption", "style": "white-space: nowrap; padding: 4px 8px;"},
+                                                            "text": "邮箱"
+                                                        },
+                                                        {
+                                                            "component": "th",
+                                                            "props": {"class": "text-caption", "style": "white-space: nowrap; padding: 4px 8px;"},
+                                                            "text": "获取时间"
+                                                        }
+                                                    ]
+                                                }
+                                            ]
+                                        },
+                                        {
+                                            "component": "tbody",
+                                            "content": [
+                                                {
+                                                    "component": "tr",
+                                                    "content": [
+                                                        {
+                                                            "component": "td",
+                                                            "props": {"style": "white-space: nowrap; padding: 4px 8px;"},
+                                                            "text": row["site_name"]
+                                                        },
+                                                        {
+                                                            "component": "td",
+                                                            "props": {"style": "white-space: nowrap; padding: 4px 8px;"},
+                                                            "text": row["inviter_name"]
+                                                        },
+                                                        {
+                                                            "component": "td",
+                                                            "props": {"style": "white-space: nowrap; padding: 4px 8px;"},
+                                                            "text": row["inviter_id"]
+                                                        },
+                                                        {
+                                                            "component": "td",
+                                                            "props": {"style": "white-space: nowrap; padding: 4px 8px;"},
+                                                            "text": row["inviter_email"]
+                                                        },
+                                                        {
+                                                            "component": "td",
+                                                            "props": {"style": "white-space: nowrap; padding: 4px 8px;"},
+                                                            "text": row["get_time"]
+                                                        }
+                                                    ]
+                                                } for row in table_rows
+                                            ]
+                                        }
+                                    ]
                                 }
                             ]
                         }
