@@ -24,11 +24,14 @@
     "name": "PT站邀请人统计",
     "description": "统计所有PT站的上家信息，包括邀请人信息和邮箱（如果隐私设置允许）。",
     "labels": "PT站,统计",
-    "version": "1.0",
+    "version": "1.3",
     "icon": "user.png",
     "author": "MoviePilot",
     "level": 2,
     "history": {
+      "v1.3": "添加立即中断任务功能，修复邀请人信息提取问题",
+      "v1.2": "优化数据提取逻辑",
+      "v1.1": "修复站点数据获取问题",
       "v1.0": "MoviePilot V2 版本PT站邀请人统计插件"
     }
   },
