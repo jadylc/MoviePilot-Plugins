@@ -247,11 +247,11 @@ class InviterInfo(_PluginBase):
         
         # 构建表格组件
         table_columns = [
-            {"title": "站点名称", "key": "site_name", "width": 150},
-            {"title": "邀请人", "key": "inviter_name", "width": 150},
-            {"title": "邀请人ID", "key": "inviter_id", "width": 100},
-            {"title": "邮箱", "key": "inviter_email", "width": 200},
-            {"title": "获取时间", "key": "get_time", "width": 150}
+            {"text": "站点名称", "value": "site_name", "width": 150},
+            {"text": "邀请人", "value": "inviter_name", "width": 150},
+            {"text": "邀请人ID", "value": "inviter_id", "width": 100},
+            {"text": "邮箱", "value": "inviter_email", "width": 200},
+            {"text": "获取时间", "value": "get_time", "width": 150}
         ]
         logger.info(f"构建表格，包含 {len(table_columns)} 列")
         
