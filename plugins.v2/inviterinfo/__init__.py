@@ -29,7 +29,7 @@ class InviterInfo(_PluginBase):
     # 插件图标
     plugin_icon = "user.png"
     # 插件版本
-    plugin_version = "1.4"
+    plugin_version = "1.5"
     # 插件作者
     plugin_author = "MoviePilot"
     # 作者主页
@@ -133,7 +133,7 @@ class InviterInfo(_PluginBase):
         site_options = []
         for site in sites:
             site_option = {
-                "title": site.name,
+                "text": site.name,
                 "value": str(site.id)
             }
             site_options.append(site_option)
@@ -216,7 +216,7 @@ class InviterInfo(_PluginBase):
                                             'chips': True,
                                             'small_chips': True,
                                             'hide_details': True,
-                                            'item_text': 'title',
+                                            'item_text': 'text',
                                             'item_value': 'value'
                                         }
                                     }
