@@ -45,6 +45,7 @@ class InviterInfo(_PluginBase):
     _enabled: bool = False
     _onlyonce: bool = False
     _selected_sites: list = []
+    _abort_flag: bool = False
     
     # 站点处理器
     _site_handlers: list = []
@@ -71,7 +72,23 @@ class InviterInfo(_PluginBase):
         return []
 
     def get_api(self) -> List[Dict[str, Any]]:
-        return []
+        return [
+            {
+                "path": "abort_run",
+                "methods": ["GET"],
+                "summary": "中止邀请人信息收集",
+                "description": "中止正在进行的PT站邀请人信息收集任务",
+                "func": self.abort_run
+            }
+        ]
+    
+    def abort_run(self):
+        """
+        设置中止标志，终止正在进行的邀请人信息收集
+        """
+        with lock:
+            self._abort_flag = True
+        logger.info("收到中止信号，将终止邀请人信息收集")
 
     def _load_site_handlers(self):
         """
@@ -102,7 +119,7 @@ class InviterInfo(_PluginBase):
         site_options = []
         for site in sites:
             site_option = {
-                "label": site.name,
+                "title": site.name,
                 "value": str(site.id)
             }
             site_options.append(site_option)
@@ -169,7 +186,7 @@ class InviterInfo(_PluginBase):
                                             'chips': True,
                                             'small_chips': True,
                                             'hide_details': True,
-                                            'item_text': 'label',
+                                            'item_text': 'title',
                                             'item_value': 'value'
                                         }
                                     }
@@ -191,8 +208,12 @@ class InviterInfo(_PluginBase):
         """
         logger.info("开始生成插件页面")
         # 获取所有站点数据
-        site_data = self.__get_all_site_inviter_info()
-        logger.info(f"获取到 {len(site_data)} 个站点的邀请人信息")
+        site_data = {}
+        if self._enabled:
+            site_data = self.__get_all_site_inviter_info()
+            logger.info(f"获取到 {len(site_data)} 个站点的邀请人信息")
+        else:
+            logger.info("插件未启用，不获取站点邀请人信息")
         
         # 构建表格组件
         table_columns = [
@@ -223,6 +244,21 @@ class InviterInfo(_PluginBase):
                 "props": {"class": "mb-4"},
                 "content": [
                     {"component": "VCardTitle", "props": {"title": "PT站邀请人信息统计"}},
+                    {
+                        "component": "VCardActions",
+                        "props": {"class": "px-4 py-2"},
+                        "content": [
+                            {
+                                "component": "VBtn",
+                                "props": {
+                                    "color": "error",
+                                    "text": True,
+                                    "onClick": "invokePluginApi('inviterinfo', 'abort_run')"
+                                },
+                                "content": "中止运行"
+                            }
+                        ]
+                    },
                     {
                         "component": "VCardText",
                         "content": [
@@ -265,6 +301,15 @@ class InviterInfo(_PluginBase):
         # 遍历所有站点
         logger.info(f"用户选择的站点列表: {self._selected_sites}")
         for site in sites:
+            # 检查是否收到中止信号
+            with lock:
+                abort_flag = self._abort_flag
+            if abort_flag:
+                logger.info("中止标志已设置，停止站点信息收集")
+                # 重置中止标志
+                with lock:
+                    self._abort_flag = False
+                break
             try:
                 logger.info(f"开始处理站点: {site.name} (ID: {site.id})")
                 # 检查站点是否在用户选择的站点列表中
@@ -299,6 +344,15 @@ class InviterInfo(_PluginBase):
                 
                 # 如果没有找到匹配的处理器，尝试使用NexusPHP通用处理器
                 if not matched_handler:
+                    # 检查是否收到中止信号
+                    with lock:
+                        abort_flag = self._abort_flag
+                    if abort_flag:
+                        logger.info("中止标志已设置，停止站点信息收集")
+                        # 重置中止标志
+                        with lock:
+                            self._abort_flag = False
+                        break
                     logger.info(f"没有找到匹配的站点处理器，尝试检查是否为NexusPHP站点")
                     from app.plugins.inviterinfo.sites.nexusphp import NexusPHPInviterInfoHandler
                     # 检查是否是NexusPHP站点
@@ -311,6 +365,15 @@ class InviterInfo(_PluginBase):
                 # 获取邀请人信息
                 inviter_info = None
                 if matched_handler:
+                    # 检查是否收到中止信号
+                    with lock:
+                        abort_flag = self._abort_flag
+                    if abort_flag:
+                        logger.info("中止标志已设置，停止站点信息收集")
+                        # 重置中止标志
+                        with lock:
+                            self._abort_flag = False
+                        break
                     logger.info(f"使用处理器 {matched_handler.__class__.__name__} 获取邀请人信息")
                     inviter_info = matched_handler.get_inviter_info(site_info)
                     logger.info(f"成功获取站点 {site.name} 的邀请人信息: {inviter_info}")
@@ -373,18 +436,72 @@ class InviterInfo(_PluginBase):
                 if res.status_code == 200:
                     # 检查页面是否包含NexusPHP特征
                     logger.info("检查页面是否包含NexusPHP特征")
-                    has_userdetails = "userdetails" in res.text
-                    has_nexusphp = "NexusPHP" in res.text
-                    has_powered_by = "Powered by" in res.text
-                    logger.info(f"页面特征检测: userdetails={has_userdetails}, NexusPHP={has_nexusphp}, Powered by={has_powered_by}")
-                    if has_userdetails and (has_nexusphp or has_powered_by):
+                    page_content = res.text
+                    
+                    # 定义NexusPHP常见特征
+                    nexusphp_features = [
+                        "NexusPHP",
+                        "Powered by",
+                        "userdetails",
+                        "rowhead",
+                        "userinfo",
+                        "profile",
+                        "outer",
+                        "userdetails.php",
+                        "takelogin.php",
+                        "index.php",
+                        "torrents.php",
+                        "forums.php",
+                        "my.php",
+                        "nexusphp",
+                        "// NexusPHP",
+                        "var SITENAME",
+                        "var BASEURL",
+                        "var USERNAME",
+                        "class='userdetails'",
+                        "class='rowhead'",
+                        "class='userinfo'",
+                        "class='profile'"
+                    ]
+                    
+                    # 计算匹配的特征数量
+                    matched_features = []
+                    for feature in nexusphp_features:
+                        if feature in page_content:
+                            matched_features.append(feature)
+                    
+                    logger.info(f"匹配到 {len(matched_features)} 个NexusPHP特征: {matched_features}")
+                    
+                    # 判断是否为NexusPHP站点的逻辑
+                    # 1. 必须包含userdetails相关特征
+                    has_userdetails = any(feature in ["userdetails", "userdetails.php", "class='userdetails'"] for feature in matched_features)
+                    # 2. 至少包含其他3个以上的NexusPHP特征
+                    has_enough_features = len(matched_features) >= 4
+                    
+                    if has_userdetails and has_enough_features:
                         logger.info(f"站点 {site_info.get('name')} 是NexusPHP站点")
                         return True
                     else:
                         logger.info(f"站点 {site_info.get('name')} 不是NexusPHP站点")
+                        logger.info(f"判断条件: has_userdetails={has_userdetails}, has_enough_features={has_enough_features}")
                         return False
                 else:
                     logger.info(f"获取页面失败，状态码: {res.status_code}")
+                    # 如果用户详情页无法访问，尝试访问首页
+                    logger.info("尝试访问站点首页")
+                    try:
+                        home_url = site_url.rstrip("/")
+                        res = RequestUtils(headers=headers,
+                                          proxies=settings.PROXY if proxy else None,
+                                          timeout=timeout).get_res(url=home_url)
+                        if res and res.status_code == 200:
+                            page_content = res.text
+                            # 检查首页是否包含NexusPHP特征
+                            if any(feature in page_content for feature in ["NexusPHP", "Powered by", "var SITENAME", "var BASEURL"]):
+                                logger.info(f"从首页判断站点 {site_info.get('name')} 是NexusPHP站点")
+                                return True
+                    except Exception as e:
+                        logger.error(f"访问首页失败: {e}")
                     return False
             else:
                 logger.info("获取页面无响应")
