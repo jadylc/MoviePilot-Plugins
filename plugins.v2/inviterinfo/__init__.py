@@ -29,7 +29,7 @@ class InviterInfo(_PluginBase):
     # 插件图标
     plugin_icon = "user.png"
     # 插件版本
-    plugin_version = "1.3"
+    plugin_version = "1.4"
     # 插件作者
     plugin_author = "MoviePilot"
     # 作者主页
@@ -110,9 +110,9 @@ class InviterInfo(_PluginBase):
         """
         try:
             logger.info("开始加载sites目录下的站点处理器")
-            # 使用ModuleHelper加载sites目录下的所有站点处理器
-            self._site_handlers = ModuleHelper.load('app.plugins.inviterinfo.sites',
-                                                   filter_func=lambda _, obj: hasattr(obj, 'match'))
+            # 使用自定义ModuleLoader加载站点处理器
+            from app.plugins.inviterinfo.module_loader import ModuleLoader
+            self._site_handlers = ModuleLoader.load_site_handlers()
             logger.info(f"成功加载 {len(self._site_handlers)} 个站点处理器")
             # 记录每个加载的处理器
             for handler_cls in self._site_handlers:
@@ -311,20 +311,29 @@ class InviterInfo(_PluginBase):
         """
         获取所有站点的邀请人信息
         """
-        logger.info("开始获取所有站点的邀请人信息")
+        logger.info("=== 开始获取所有站点的邀请人信息 ===")
         site_data = {}
         
         # 获取所有活跃站点
-        sites = SiteOper().list_active()
-        logger.info(f"获取到 {len(sites)} 个活跃站点")
-        if not sites:
-            logger.info("没有找到活跃站点，直接返回")
+        try:
+            sites = SiteOper().list_active()
+            logger.info(f"成功获取到 {len(sites)} 个活跃站点")
+            if not sites:
+                logger.info("没有找到活跃站点，直接返回")
+                return site_data
+        except Exception as e:
+            logger.error(f"获取活跃站点列表失败: {str(e)}")
+            logger.exception(e)
             return site_data
         
         # 如果没有加载到站点处理器，尝试重新加载
         if not self._site_handlers:
             logger.info("没有加载到站点处理器，尝试重新加载")
-            self._load_site_handlers()
+            try:
+                self._load_site_handlers()
+            except Exception as e:
+                logger.error(f"重新加载站点处理器失败: {str(e)}")
+                logger.exception(e)
         
         # 遍历所有站点
         logger.info(f"用户选择的站点列表: {self._selected_sites}")
@@ -338,8 +347,10 @@ class InviterInfo(_PluginBase):
                 with lock:
                     self._abort_flag = False
                 break
+            
             try:
-                logger.info(f"开始处理站点: {site.name} (ID: {site.id})")
+                logger.info(f"=== 开始处理站点: {site.name} (ID: {site.id}) ===")
+                
                 # 检查站点是否在用户选择的站点列表中
                 if self._selected_sites and str(site.id) not in self._selected_sites:
                     logger.info(f"站点 {site.name} 不在用户选择的站点列表中，跳过")
@@ -355,20 +366,22 @@ class InviterInfo(_PluginBase):
                     "proxy": site.proxy,
                     "timeout": site.timeout or 20
                 }
-                logger.info(f"构建站点信息: {site_info}")
+                logger.debug(f"构建的站点信息: {site_info}")
                 
                 logger.info(f"开始获取站点 {site.name} 的邀请人信息")
                 
                 # 查找匹配的站点处理器
                 matched_handler = None
-                logger.info(f"开始查找匹配的站点处理器，共有 {len(self._site_handlers)} 个处理器")
-                for handler_cls in self._site_handlers:
-                    handler = handler_cls()
-                    logger.info(f"尝试处理器: {handler_cls.__name__}")
-                    if handler.match(site.url):
-                        matched_handler = handler
-                        logger.info(f"找到匹配的站点处理器: {handler_cls.__name__}")
-                        break
+                try:
+                    logger.info(f"开始查找匹配的站点处理器，共有 {len(self._site_handlers)} 个处理器可用")
+                    # 使用ModuleLoader的get_handler_for_site方法查找匹配的处理器
+                    from app.plugins.inviterinfo.module_loader import ModuleLoader
+                    matched_handler = ModuleLoader.get_handler_for_site(site.url, self._site_handlers)
+                    if matched_handler:
+                        logger.info(f"成功获取站点处理器实例: {matched_handler.__class__.__name__}")
+                except Exception as ex:
+                    logger.error(f"查找站点处理器失败: {str(ex)}")
+                    logger.exception(ex)
                 
                 # 如果没有找到匹配的处理器，尝试使用NexusPHP通用处理器
                 if not matched_handler:
@@ -381,14 +394,40 @@ class InviterInfo(_PluginBase):
                         with lock:
                             self._abort_flag = False
                         break
+                    
                     logger.info(f"没有找到匹配的站点处理器，尝试检查是否为NexusPHP站点")
-                    from app.plugins.inviterinfo.sites.nexusphp import NexusPHPInviterInfoHandler
-                    # 检查是否是NexusPHP站点
-                    if self.__is_nexusphp_site(site_info):
-                        matched_handler = NexusPHPInviterInfoHandler()
-                        logger.info(f"站点 {site.name} 使用NexusPHP通用处理器")
-                    else:
-                        logger.info(f"站点 {site.name} 不是NexusPHP站点，无法处理")
+                    try:
+                        from app.plugins.inviterinfo.sites.nexusphp import NexusPHPInviterInfoHandler
+                        # 使用NexusPHPInviterInfoHandler的is_nexusphp_site方法检查
+                        nexusphp_handler = NexusPHPInviterInfoHandler()
+                        # 先获取页面内容，再判断是否为NexusPHP站点
+                        site_url = site.url.rstrip("/")
+                        test_urls = [
+                            f"{site_url}/userdetails.php?id=0",
+                            f"{site_url}/my.php",
+                            f"{site_url}/profile.php",
+                            f"{site_url}/usercp.php",
+                            site_url  # 首页
+                        ]
+                        is_nexusphp = False
+                        page_content = ""
+                        for test_url in test_urls:
+                            page_content = nexusphp_handler.get_page_source(test_url, site_info)
+                            if page_content:
+                                if nexusphp_handler.is_nexusphp_site(page_content):
+                                    is_nexusphp = True
+                                    break
+                        if is_nexusphp:
+                            matched_handler = nexusphp_handler
+                            logger.info(f"站点 {site.name} 使用NexusPHP通用处理器")
+                        else:
+                            logger.info(f"站点 {site.name} 不是NexusPHP站点，无法处理")
+                            # 记录页面预览用于调试
+                            if page_content:
+                                logger.debug(f"页面预览: {page_content[:500]}...")
+                    except Exception as ex:
+                        logger.error(f"检查站点类型失败: {str(ex)}")
+                        logger.exception(ex)
                 
                 # 获取邀请人信息
                 inviter_info = None
@@ -402,32 +441,46 @@ class InviterInfo(_PluginBase):
                         with lock:
                             self._abort_flag = False
                         break
-                    logger.info(f"使用处理器 {matched_handler.__class__.__name__} 获取邀请人信息")
-                    inviter_info = matched_handler.get_inviter_info(site_info)
-                    logger.info(f"成功获取站点 {site.name} 的邀请人信息: {inviter_info}")
+                    
+                    try:
+                        logger.info(f"使用处理器 {matched_handler.__class__.__name__} 获取邀请人信息")
+                        inviter_info = matched_handler.get_inviter_info(site_info)
+                        logger.info(f"成功获取站点 {site.name} 的邀请人信息")
+                        logger.debug(f"邀请人信息内容: {inviter_info}")
+                    except Exception as ex:
+                        logger.error(f"获取邀请人信息失败: {str(ex)}")
+                        logger.exception(ex)
                 else:
                     logger.info(f"站点 {site.name} 暂不支持邀请人信息获取")
                     
                 # 保存邀请人信息
                 if inviter_info is not None:
                     logger.info(f"开始保存站点 {site.name} 的邀请人信息")
-                    site_data_entry = {
-                        "inviter_name": inviter_info.get("inviter_name", "-"),
-                        "inviter_id": inviter_info.get("inviter_id", "-"),
-                        "inviter_email": inviter_info.get("inviter_email", "-"),
-                        "get_time": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                    }
-                    site_data[site.name] = site_data_entry
-                    logger.info(f"成功保存站点 {site.name} 的邀请人信息: {site_data_entry}")
-                    # 保存到持久化存储
-                    self.__save_site_data(site_data)
+                    try:
+                        site_data_entry = {
+                            "inviter_name": inviter_info.get("inviter_name", "-"),
+                            "inviter_id": inviter_info.get("inviter_id", "-"),
+                            "inviter_email": inviter_info.get("inviter_email", "-"),
+                            "get_time": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                        }
+                        site_data[site.name] = site_data_entry
+                        logger.info(f"成功保存站点 {site.name} 的邀请人信息")
+                        logger.debug(f"保存的信息: {site_data_entry}")
+                        # 保存到持久化存储
+                        self.__save_site_data(site_data)
+                    except Exception as ex:
+                        logger.error(f"保存邀请人信息失败: {str(ex)}")
+                        logger.exception(ex)
                 else:
-                    logger.info(f"站点 {site.name} 的邀请人信息为None，不保存")
+                    logger.info(f"站点 {site.name} 的邀请人信息为空，不保存")
                     
             except Exception as e:
-                logger.error(f"获取站点 {site.name} 的邀请人信息失败: {e}")
+                logger.error(f"处理站点 {site.name} 时发生未预期的错误: {str(e)}")
+                logger.exception(e)
+                logger.info(f"继续处理下一个站点")
                 continue
         
+        logger.info(f"=== 所有站点处理完成，共获取到 {len(site_data)} 个站点的邀请人信息 ===")
         return site_data
     
     def __save_site_data(self, site_data: dict):
@@ -482,109 +535,66 @@ class InviterInfo(_PluginBase):
         :param site_info: 站点信息
         :return: 是否为NexusPHP站点
         """
-        logger.info(f"开始判断站点 {site_info.get('name')} 是否为NexusPHP站点")
+        site_name = site_info.get('name', '未知站点')
+        logger.info(f"=== 开始判断站点 {site_name} 是否为NexusPHP站点 ===")
         try:
             site_url = site_info.get("url")
             if not site_url:
-                logger.info("站点URL为空，无法判断是否为NexusPHP站点")
+                logger.error(f"站点 {site_name} 的URL为空，无法判断是否为NexusPHP站点")
                 return False
                 
-            # 尝试访问用户详情页
-            user_url = f"{site_url}/userdetails.php?id=0"
-            logger.info(f"尝试访问用户详情页: {user_url}")
-            cookie = site_info.get("cookie")
-            ua = site_info.get("ua")
-            proxy = site_info.get("proxy")
-            timeout = site_info.get("timeout", 20)
-            
-            headers = {
-                "User-Agent": ua,
-                "Cookie": cookie
-            }
-            logger.info(f"使用Headers: {headers}")
-            
-            res = RequestUtils(headers=headers,
-                               proxies=settings.PROXY if proxy else None,
-                               timeout=timeout).get_res(url=user_url)
-            
-            if res:
-                logger.info(f"获取页面状态码: {res.status_code}")
-                if res.status_code == 200:
-                    # 检查页面是否包含NexusPHP特征
-                    logger.info("检查页面是否包含NexusPHP特征")
-                    page_content = res.text
-                    
-                    # 定义NexusPHP常见特征
-                    nexusphp_features = [
-                        "NexusPHP",
-                        "Powered by",
-                        "userdetails",
-                        "rowhead",
-                        "userinfo",
-                        "profile",
-                        "outer",
-                        "userdetails.php",
-                        "takelogin.php",
-                        "index.php",
-                        "torrents.php",
-                        "forums.php",
-                        "my.php",
-                        "nexusphp",
-                        "// NexusPHP",
-                        "var SITENAME",
-                        "var BASEURL",
-                        "var USERNAME",
-                        "class='userdetails'",
-                        "class='rowhead'",
-                        "class='userinfo'",
-                        "class='profile'"
-                    ]
-                    
-                    # 计算匹配的特征数量
-                    matched_features = []
-                    for feature in nexusphp_features:
-                        if feature in page_content:
-                            matched_features.append(feature)
-                    
-                    logger.info(f"匹配到 {len(matched_features)} 个NexusPHP特征: {matched_features}")
-                    
-                    # 判断是否为NexusPHP站点的逻辑
-                    # 1. 必须包含userdetails相关特征
-                    has_userdetails = any(feature in ["userdetails", "userdetails.php", "class='userdetails'"] for feature in matched_features)
-                    # 2. 至少包含其他3个以上的NexusPHP特征
-                    has_enough_features = len(matched_features) >= 4
-                    
-                    if has_userdetails and has_enough_features:
-                        logger.info(f"站点 {site_info.get('name')} 是NexusPHP站点")
-                        return True
-                    else:
-                        logger.info(f"站点 {site_info.get('name')} 不是NexusPHP站点")
-                        logger.info(f"判断条件: has_userdetails={has_userdetails}, has_enough_features={has_enough_features}")
-                        return False
-                else:
-                    logger.info(f"获取页面失败，状态码: {res.status_code}")
-                    # 如果用户详情页无法访问，尝试访问首页
-                    logger.info("尝试访问站点首页")
-                    try:
-                        home_url = site_url.rstrip("/")
-                        res = RequestUtils(headers=headers,
-                                          proxies=settings.PROXY if proxy else None,
-                                          timeout=timeout).get_res(url=home_url)
-                        if res and res.status_code == 200:
-                            page_content = res.text
-                            # 检查首页是否包含NexusPHP特征
-                            if any(feature in page_content for feature in ["NexusPHP", "Powered by", "var SITENAME", "var BASEURL"]):
-                                logger.info(f"从首页判断站点 {site_info.get('name')} 是NexusPHP站点")
-                                return True
-                    except Exception as e:
-                        logger.error(f"访问首页失败: {e}")
-                    return False
-            else:
-                logger.info("获取页面无响应")
+            # 创建NexusPHPInviterInfoHandler实例
+            try:
+                from app.plugins.inviterinfo.sites.nexusphp import NexusPHPInviterInfoHandler
+                handler = NexusPHPInviterInfoHandler()
+                logger.info(f"成功创建NexusPHPInviterInfoHandler实例")
+            except Exception as handler_ex:
+                logger.error(f"创建NexusPHPInviterInfoHandler实例失败: {str(handler_ex)}")
+                logger.exception(handler_ex)
                 return False
+            
+            # 尝试访问多个常见页面以提高识别准确率
+            test_urls = [
+                f"{site_url}/userdetails.php?id=0",
+                f"{site_url}/my.php",
+                f"{site_url}/profile.php",
+                site_url.rstrip("/")  # 首页
+            ]
+            
+            logger.info(f"将尝试访问 {len(test_urls)} 个页面以识别站点类型: {test_urls}")
+            
+            for test_url in test_urls:
+                logger.info(f"尝试访问页面: {test_url}")
+                
+                try:
+                    # 使用统一的get_page_source方法获取页面内容
+                    page_content = handler.get_page_source(test_url, site_info)
+                    
+                    if page_content:
+                        logger.info(f"成功获取页面内容，大小: {len(page_content)} 字节")
+                        # 检查页面是否包含NexusPHP特征（使用handler内置的判断方法）
+                        logger.info("开始检查页面是否包含NexusPHP特征")
+                        if handler.is_nexusphp_site(page_content):
+                            logger.info(f"站点 {site_name} 是NexusPHP站点")
+                            logger.info("=== 站点类型判断完成 ===")
+                            return True
+                        logger.info(f"当前页面 {test_url} 不包含足够的NexusPHP特征，尝试下一个URL")
+                    else:
+                        logger.warning(f"获取页面 {test_url} 无响应或内容为空，尝试下一个URL")
+                except Exception as page_ex:
+                    logger.error(f"访问页面 {test_url} 时发生错误: {str(page_ex)}")
+                    logger.exception(page_ex)
+                    logger.info(f"继续尝试下一个URL")
+                    continue
+            
+            # 所有测试URL都未检测到NexusPHP特征
+            logger.info(f"站点 {site_name} 不是NexusPHP站点")
+            logger.info("=== 站点类型判断完成 ===")
+            return False
         except Exception as e:
-            logger.error(f"判断站点类型失败: {e}")
+            logger.error(f"判断站点 {site_name} 类型失败: {str(e)}")
             logger.exception(e)
+            logger.info("=== 站点类型判断完成 ===")
             return False
 
     def get_service(self) -> List[Dict[str, Any]]:

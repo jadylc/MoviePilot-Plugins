@@ -92,238 +92,93 @@ class NexusPHPInviterInfoHandler(_IInviterInfoHandler):
         :return: 邀请人信息字典
         """
         logger.info(f"开始获取NexusPHP站点 {site_info.get('name')} 的邀请人信息")
-        cookie = site_info.get("cookie")
-        ua = site_info.get("ua")
-        proxy = site_info.get("proxy")
-        timeout = site_info.get("timeout", 20)
+        logger.debug(f"站点信息详情: {site_info}")
+        
         site_url = site_info.get("url", "")
 
         if not site_url:
             logger.error("获取NexusPHP站点信息失败：未提供站点URL")
             return None
 
-        # 构建用户详情页URL
-        user_url = f"{site_url}/userdetails.php?id=0"
-        logger.info(f"构建用户详情页URL: {user_url}")
-
-        # 获取页面源码
-        headers = {
-            "User-Agent": ua,
-            "Cookie": cookie
-        }
-        logger.info(f"使用Headers: {headers}")
-        res = RequestUtils(headers=headers,
-                           proxies=settings.PROXY if proxy else None,
-                           timeout=timeout).get_res(url=user_url)
-        if res:
-            logger.info(f"获取页面状态码: {res.status_code}")
-            if res.status_code != 200:
-                logger.error(f"获取NexusPHP用户页面失败: {res.status_code}")
-                # 如果用户详情页失败，尝试获取首页
-                logger.info("尝试获取站点首页")
-                home_res = RequestUtils(headers=headers,
-                                       proxies=settings.PROXY if proxy else None,
-                                       timeout=timeout).get_res(url=site_url)
-                if home_res and home_res.status_code == 200:
-                    logger.info("成功获取站点首页，检查是否为NexusPHP站点")
-                    is_nexusphp = self.is_nexusphp_site(home_res.text)
-                    logger.info(f"站点{site_info.get('name')}是否为NexusPHP站点: {is_nexusphp}")
-                return None
-        else:
-            logger.error("获取NexusPHP用户页面失败: 无响应")
+        # 验证用户ID和登录状态
+        logger.info("开始验证用户ID和登录状态")
+        user_id = self._get_user_id(site_info)
+        logger.info(f"获取到用户ID: {user_id}")
+        
+        # 构建用户详情页URL - 尝试多种可能的路径
+        user_urls = []
+        if user_id:
+            user_urls.append(f"{site_url}/userdetails.php?id={user_id}")
+            logger.debug(f"使用用户ID构建URL: {user_urls[-1]}")
+        user_urls.extend([
+            f"{site_url}/userdetails.php?id=0",
+            f"{site_url}/my.php",
+            f"{site_url}/profile.php",
+            f"{site_url}/user.php"
+        ])
+        
+        logger.info(f"构建的用户详情页URL列表: {user_urls}")
+        
+        # 尝试访问每个URL，直到成功获取到内容
+        html_content = ""
+        final_user_url = ""
+        for user_url in user_urls:
+            logger.info(f"尝试访问URL: {user_url}")
+            html_content = self.get_page_source(user_url, site_info)
+            
+            if html_content:
+                logger.info(f"成功获取页面: {user_url}")
+                logger.debug(f"页面内容大小: {len(html_content)} 字节")
+                final_user_url = user_url
+                break
+            else:
+                logger.info(f"获取页面失败: {user_url}")
+                
+        if not html_content:
+            logger.error("所有用户详情页URL都无法访问")
             return None
+            
+        logger.info(f"最终使用URL: {final_user_url} 获取页面内容")
 
         # 检查是否为NexusPHP站点
         logger.info("检查是否为NexusPHP站点")
-        is_nexusphp = self.is_nexusphp_site(res.text)
+        is_nexusphp = self.is_nexusphp_site(html_content)
         logger.info(f"站点{site_info.get('name')}是否为NexusPHP站点: {is_nexusphp}")
 
         from lxml import etree
-        html = etree.HTML(res.text)
+        html = etree.HTML(html_content)
         if not html:
             logger.error("解析NexusPHP用户页面失败")
             return None
         logger.info("成功解析NexusPHP用户页面")
+        logger.debug("HTML解析树构建完成")
 
-        # 尝试多种常见的邀请人信息XPath
+        # 核心NexusPHP表格结构邀请人信息XPath（仅保留NP核心结构规则）
         inviter_xpaths = [
-            # 表格结构（用户提供的HTML结构） - 精确匹配
+            # 表格结构（NP核心结构） - 精确匹配
             "//td[@class='rowhead' and text()='邀请人']/following-sibling::td[1]",
             "//td[@class='rowhead nowrap' and text()='邀请人']/following-sibling::td[1]",
-            "//td[text()='邀请人']/following-sibling::td[1]",
             "//td[@class='rowhead' and contains(text(), '邀请人')]/following-sibling::td[1]",
+            "//td[text()='邀请人']/following-sibling::td[1]",
             "//td[contains(text(), '邀请人')]/following-sibling::td[1]",
-            "//td[text()='Inviter']/following-sibling::td[1]",
+            
+            # 英文版本
             "//td[@class='rowhead' and text()='Inviter']/following-sibling::td[1]",
             "//td[@class='rowhead' and contains(text(), 'Inviter')]/following-sibling::td[1]",
+            "//td[text()='Inviter']/following-sibling::td[1]",
             "//td[contains(text(), 'Inviter')]/following-sibling::td[1]",
-            # 更复杂的表格结构变体
-            "//table[@class='userdetails']//td[contains(text(), '邀请人')]/following-sibling::td[1]",
-            "//table[@class='userinfo']//td[contains(text(), '邀请人')]/following-sibling::td[1]",
-            "//table[@class='profile']//td[contains(text(), '邀请人')]/following-sibling::td[1]",
-            "//table[@class='userdetails']//td[contains(text(), 'Inviter')]/following-sibling::td[1]",
-            "//table[@class='userinfo']//td[contains(text(), 'Inviter')]/following-sibling::td[1]",
-            "//table[@class='profile']//td[contains(text(), 'Inviter')]/following-sibling::td[1]",
-            # 更多表格结构变体
-            "//table[contains(@class, 'userdetails')]//td[contains(text(), '邀请人')]/following-sibling::td[1]",
-            "//table[contains(@class, 'userinfo')]//td[contains(text(), '邀请人')]/following-sibling::td[1]",
-            "//table[contains(@class, 'profile')]//td[contains(text(), '邀请人')]/following-sibling::td[1]",
-            "//table[contains(@class, 'userdetails')]//td[contains(text(), 'Inviter')]/following-sibling::td[1]",
-            "//table[contains(@class, 'userinfo')]//td[contains(text(), 'Inviter')]/following-sibling::td[1]",
-            "//table[contains(@class, 'profile')]//td[contains(text(), 'Inviter')]/following-sibling::td[1]",
-            "//table[@id='userdetails']//td[contains(text(), '邀请人')]/following-sibling::td[1]",
-            "//table[@id='userinfo']//td[contains(text(), '邀请人')]/following-sibling::td[1]",
-            "//table[@id='profile']//td[contains(text(), '邀请人')]/following-sibling::td[1]",
-            "//table[@id='userdetails']//td[contains(text(), 'Inviter')]/following-sibling::td[1]",
-            "//table[@id='userinfo']//td[contains(text(), 'Inviter')]/following-sibling::td[1]",
-            "//table[@id='profile']//td[contains(text(), 'Inviter')]/following-sibling::td[1]",
-            # 表格行内的所有元素
+            
+            # 表格行匹配（当列属性不明确时）
             "//tr[contains(., '邀请人')]//td[position()>1]",
             "//tr[contains(., 'Inviter')]//td[position()>1]",
+            
+            # 中文变体（上家、上级、推荐人）
+            "//td[@class='rowhead' and contains(text(), '上家')]/following-sibling::td[1]",
+            "//td[@class='rowhead' and contains(text(), '上级')]/following-sibling::td[1]",
+            "//td[@class='rowhead' and contains(text(), '推荐人')]/following-sibling::td[1]",
             "//tr[contains(., '上家')]//td[position()>1]",
             "//tr[contains(., '上级')]//td[position()>1]",
             "//tr[contains(., '推荐人')]//td[position()>1]",
-            "//tr[contains(., 'Referrer')]//td[position()>1]",
-            "//tr[contains(., 'Sponsor')]//td[position()>1]",
-            # 列表结构
-            "//div[@class='userinfo']//li[contains(text(), '邀请人')]",
-            "//div[@class='profile']//li[contains(text(), '邀请人')]",
-            "//div[@id='outer']//li[contains(text(), '邀请人')]",
-            "//li[contains(text(), '邀请人')]",
-            "//div[@class='userinfo']//li[contains(text(), 'Inviter')]",
-            "//div[@class='profile']//li[contains(text(), 'Inviter')]",
-            "//div[@id='outer']//li[contains(text(), 'Inviter')]",
-            "//li[contains(text(), 'Inviter')]",
-            # 列表结构变体
-            "//ul[@class='userinfo']//li[contains(text(), '邀请人')]",
-            "//ul[@class='profile']//li[contains(text(), '邀请人')]",
-            "//ul[@class='userdetails']//li[contains(text(), '邀请人')]",
-            "//ul[@class='userinfo']//li[contains(text(), 'Inviter')]",
-            "//ul[@class='profile']//li[contains(text(), 'Inviter')]",
-            "//ul[@class='userdetails']//li[contains(text(), 'Inviter')]",
-            "//ol[@class='userinfo']//li[contains(text(), '邀请人')]",
-            "//ol[@class='profile']//li[contains(text(), '邀请人')]",
-            "//ol[@class='userdetails']//li[contains(text(), '邀请人')]",
-            "//ol[@class='userinfo']//li[contains(text(), 'Inviter')]",
-            "//ol[@class='profile']//li[contains(text(), 'Inviter')]",
-            "//ol[@class='userdetails']//li[contains(text(), 'Inviter')]",
-            # 列表项中的span和div
-            "//li[contains(text(), '邀请人')]//span[not(contains(text(), '邀请人'))]",
-            "//li[contains(text(), 'Inviter')]//span[not(contains(text(), 'Inviter'))]",
-            "//li[contains(text(), '邀请人')]//div[not(contains(text(), '邀请人'))]",
-            "//li[contains(text(), 'Inviter')]//div[not(contains(text(), 'Inviter'))]",
-            # 通用结构
-            "//*[contains(text(), '邀请人')]/following-sibling::*",
-            "//*[text()='邀请人']/following-sibling::*",
-            "//*[contains(text(), 'Inviter')]/following-sibling::*",
-            "//*[text()='Inviter']/following-sibling::*",
-            "//*[contains(text(), '邀请人')]/..",
-            "//*[contains(text(), 'Inviter')]/..",
-            # 通用结构变体
-            "//*[contains(text(), '邀请人')]/following::*[1]",
-            "//*[contains(text(), 'Inviter')]/following::*[1]",
-            "//*[text()='邀请人']/following::*[1]",
-            "//*[text()='Inviter']/following::*[1]",
-            "//*[contains(text(), '邀请人')]/following::text()[1]",
-            "//*[contains(text(), 'Inviter')]/following::text()[1]",
-            "//*[text()='邀请人']/following::text()[1]",
-            "//*[text()='Inviter']/following::text()[1]",
-            # 更通用的查找（包含各种标签）
-            "//tr[contains(., '邀请人')]",
-            "//tr[contains(., 'Inviter')]",
-            "//div[contains(text(), '邀请人')]",
-            "//div[contains(text(), 'Inviter')]",
-            "//span[contains(text(), '邀请人')]",
-            "//span[contains(text(), 'Inviter')]",
-            "//p[contains(text(), '邀请人')]",
-            "//p[contains(text(), 'Inviter')]",
-            "//div[@class='inviter']",
-            "//span[@class='inviter']",
-            "//div[contains(@class, 'inviter')]",
-            "//span[contains(@class, 'inviter')]",
-            "//div[@id='inviter']",
-            "//span[@id='inviter']",
-            "//p[@class='inviter']",
-            "//p[@id='inviter']",
-            # 更多标签组合
-            "//div[contains(@class, 'info')]//*[contains(text(), '邀请人')]",
-            "//div[contains(@class, 'info')]//*[contains(text(), 'Inviter')]",
-            "//div[contains(@class, 'details')]//*[contains(text(), '邀请人')]",
-            "//div[contains(@class, 'details')]//*[contains(text(), 'Inviter')]",
-            "//div[contains(@class, 'user')]//*[contains(text(), '邀请人')]",
-            "//div[contains(@class, 'user')]//*[contains(text(), 'Inviter')]",
-            "//div[contains(@class, 'profile')]//*[contains(text(), '邀请人')]",
-            "//div[contains(@class, 'profile')]//*[contains(text(), 'Inviter')]",
-            "//div[contains(@class, 'member')]//*[contains(text(), '邀请人')]",
-            "//div[contains(@class, 'member')]//*[contains(text(), 'Inviter')]",
-            # 更多层级结构
-            "//body//*[contains(text(), '邀请人')]/following-sibling::*",
-            "//body//*[contains(text(), 'Inviter')]/following-sibling::*",
-            "//div[@id='content']//*[contains(text(), '邀请人')]/following-sibling::*",
-            "//div[@id='content']//*[contains(text(), 'Inviter')]/following-sibling::*",
-            "//div[@class='container']//*[contains(text(), '邀请人')]/following-sibling::*",
-            "//div[@class='container']//*[contains(text(), 'Inviter')]/following-sibling::*",
-            "//div[@class='wrapper']//*[contains(text(), '邀请人')]/following-sibling::*",
-            "//div[@class='wrapper']//*[contains(text(), 'Inviter')]/following-sibling::*",
-            # 更多兄弟节点查找方式
-            "//*[contains(text(), '邀请人')]/following-sibling::text()",
-            "//*[contains(text(), 'Inviter')]/following-sibling::text()",
-            "//*[text()='邀请人']/following-sibling::text()",
-            "//*[text()='Inviter']/following-sibling::text()",
-            # 中文变体
-            "//*[contains(text(), '上家')]/following-sibling::*",
-            "//*[contains(text(), '上级')]/following-sibling::*",
-            "//*[contains(text(), '推荐人')]/following-sibling::*",
-            "//*[contains(text(), '上家')]/following::*[1]",
-            "//*[contains(text(), '上级')]/following::*[1]",
-            "//*[contains(text(), '推荐人')]/following::*[1]",
-            "//*[text()='上家']/following-sibling::*",
-            "//*[text()='上级']/following-sibling::*",
-            "//*[text()='推荐人']/following-sibling::*",
-            "//*[text()='上家']/following::*[1]",
-            "//*[text()='上级']/following::*[1]",
-            "//*[text()='推荐人']/following::*[1]",
-            "//*[contains(text(), '上家')]/following-sibling::text()",
-            "//*[contains(text(), '上级')]/following-sibling::text()",
-            "//*[contains(text(), '推荐人')]/following-sibling::text()",
-            "//*[text()='上家']/following-sibling::text()",
-            "//*[text()='上级']/following-sibling::text()",
-            "//*[text()='推荐人']/following-sibling::text()",
-            # 英文变体
-            "//*[contains(text(), 'Referrer')]/following-sibling::*",
-            "//*[contains(text(), 'Sponsor')]/following-sibling::*",
-            "//*[contains(text(), 'Referrer')]/following::*[1]",
-            "//*[contains(text(), 'Sponsor')]/following::*[1]",
-            "//*[text()='Referrer']/following-sibling::*",
-            "//*[text()='Sponsor']/following-sibling::*",
-            "//*[text()='Referrer']/following::*[1]",
-            "//*[text()='Sponsor']/following::*[1]",
-            "//*[contains(text(), 'Referrer')]/following-sibling::text()",
-            "//*[contains(text(), 'Sponsor')]/following-sibling::text()",
-            "//*[text()='Referrer']/following-sibling::text()",
-            "//*[text()='Sponsor']/following-sibling::text()",
-            # 更多中文标签变体
-            "//*[contains(text(), '邀请人信息')]/following-sibling::*",
-            "//*[contains(text(), '邀请人资料')]/following-sibling::*",
-            "//*[contains(text(), '邀请我的人')]/following-sibling::*",
-            "//*[contains(text(), '邀请人信息')]/following::*[1]",
-            "//*[contains(text(), '邀请人资料')]/following::*[1]",
-            "//*[contains(text(), '邀请我的人')]/following::*[1]",
-            "//*[contains(text(), '邀请人ID')]/following-sibling::*",
-            "//*[contains(text(), '邀请人ID')]/following::*[1]",
-            "//*[contains(text(), '注册来源')]/following-sibling::*",
-            "//*[contains(text(), '注册来源')]/following::*[1]",
-            # 更多英文标签变体
-            "//*[contains(text(), 'Inviter Info')]/following-sibling::*",
-            "//*[contains(text(), 'Inviter Details')]/following-sibling::*",
-            "//*[contains(text(), 'Who Invited Me')]/following-sibling::*",
-            "//*[contains(text(), 'Inviter Info')]/following::*[1]",
-            "//*[contains(text(), 'Inviter Details')]/following::*[1]",
-            "//*[contains(text(), 'Who Invited Me')]/following::*[1]",
-            "//*[contains(text(), 'Inviter ID')]/following-sibling::*",
-            "//*[contains(text(), 'Inviter ID')]/following::*[1]",
-            "//*[contains(text(), 'Registration Source')]/following-sibling::*",
-            "//*[contains(text(), 'Registration Source')]/following::*[1]",
         ]
         logger.info(f"使用 {len(inviter_xpaths)} 种XPath尝试提取邀请人信息")
 
@@ -354,16 +209,50 @@ class NexusPHPInviterInfoHandler(_IInviterInfoHandler):
         if not inviter_element:
             logger.info("NexusPHP未找到邀请人信息，返回'无'")
             # 添加详细调试信息
-            page_preview = res.text[:2000] + "..." if len(res.text) > 2000 else res.text
+            page_preview = html_content[:2000] + "..." if len(html_content) > 2000 else html_content
             logger.debug(f"页面预览 (前2000字符): {page_preview}")
+            
+            # 保存完整页面内容到文件（仅用于调试）
+            import os
+            import time
+            try:
+                site_name = site_info.get('name', 'unknown')
+                # 获取当前文件所在目录的父目录，即插件根目录
+                current_dir = os.path.dirname(os.path.abspath(__file__))
+                plugin_root = os.path.dirname(current_dir)
+                debug_dir = os.path.join(plugin_root, 'debug')
+                logger.debug(f"尝试创建调试目录: {debug_dir}")
+                if not os.path.exists(debug_dir):
+                    os.makedirs(debug_dir)
+                    logger.debug(f"成功创建调试目录: {debug_dir}")
+                timestamp = time.strftime("%Y%m%d_%H%M%S")
+                debug_file = os.path.join(debug_dir, f"{site_name}_{timestamp}.html")
+                logger.debug(f"尝试保存调试文件到: {debug_file}")
+                with open(debug_file, "w", encoding="utf-8") as f:
+                    f.write(html_content)
+                logger.info(f"页面完整内容已保存到调试文件: {debug_file}")
+            except Exception as e:
+                logger.error(f"保存页面内容到调试文件失败: {e}")
+                import traceback
+                logger.error(f"错误堆栈: {traceback.format_exc()}")
             
             # 查找页面中所有包含邀请人相关关键词的元素
             import re
-            inviter_keywords = ["邀请人", "Inviter", "上家", "上级", "推荐人", "Referrer", "Sponsor"]
+            inviter_keywords = [
+                # 中文关键词
+                "邀请人", "上家", "上级", "推荐人", "注册来源", "注册方式", "邀请来源", "邀请我的人", "邀请人信息",
+                "邀请人资料", "邀请人ID", "我的邀请人", "注册介绍人", "介绍人", "介绍我的人", "邀请者", "引荐人",
+                "邀请码来源", "注册邀请人", "邀请人姓名", "邀请人账号", "邀请人用户名", "邀请人昵称", "上家信息",
+                "上级信息", "推荐人信息", "推荐人ID", "引荐人信息", "引荐人ID",
+                # 英文关键词
+                "Inviter", "Referrer", "Sponsor", "Invited By", "Invited by", "Who Invited Me", "Registration Source",
+                "Registration Referrer", "Referral Source", "Referral", "Sponsored By", "Sponsored by", "Inviter Info",
+                "Inviter Details", "Inviter ID", "My Inviter", "Referral ID", "Sponsor ID", "Referrer ID"
+            ]
             matches = []
             for keyword in inviter_keywords:
                 # 使用正则表达式查找包含关键词的文本片段
-                keyword_matches = re.finditer(f'.{{0,50}}{re.escape(keyword)}.{{0,100}}', res.text, re.IGNORECASE)
+                keyword_matches = re.finditer(f'.{{0,50}}{re.escape(keyword)}.{{0,100}}', html_content, re.IGNORECASE)
                 for match in keyword_matches:
                     matches.append((keyword, match.group().strip()))
             
@@ -376,13 +265,18 @@ class NexusPHPInviterInfoHandler(_IInviterInfoHandler):
             
             # 记录页面的基本结构信息
             logger.debug("页面基本结构信息:")
-            logger.debug(f"  - 页面长度: {len(res.text)} 字符")
-            logger.debug(f"  - 是否包含userdetails.php: {'userdetails.php' in res.text}")
-            logger.debug(f"  - 是否包含userinfo: {'userinfo' in res.text}")
-            logger.debug(f"  - 是否包含profile: {'profile' in res.text}")
-            logger.debug(f"  - 是否包含table标签: {'<table' in res.text}")
-            logger.debug(f"  - 是否包含ul/ol标签: {'<ul' in res.text or '<ol' in res.text}")
+            logger.debug(f"  - 页面长度: {len(html_content)} 字符")
+            logger.debug(f"  - 是否包含userdetails.php: {'userdetails.php' in html_content}")
+            logger.debug(f"  - 是否包含userinfo: {'userinfo' in html_content}")
+            logger.debug(f"  - 是否包含profile: {'profile' in html_content}")
+            logger.debug(f"  - 是否包含table标签: {'<table' in html_content}")
+            logger.debug(f"  - 是否包含ul/ol标签: {'<ul' in html_content or '<ol' in html_content}")
+            logger.debug(f"  - 是否包含div标签: {'<div' in html_content}")
+            logger.debug(f"  - 是否包含span标签: {'<span' in html_content}")
             
+            # 移除了AFUN站点的特殊处理，使用通用的NexusPHP表格结构XPath即可
+
+            logger.info("NexusPHP未找到邀请人信息，返回'无'")
             return {
                 "inviter_name": "无",
                 "inviter_id": "",
