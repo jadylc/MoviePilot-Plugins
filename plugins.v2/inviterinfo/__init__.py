@@ -126,160 +126,99 @@ class InviterInfo(_PluginBase):
         """
         拼装插件配置页面
         """
-        logger.info("开始生成插件配置表单")
         # 获取所有活跃站点
         sites_helper = SitesHelper()
         managed_sites = sites_helper.get_indexers()
-        logger.info(f"获取到 {len(managed_sites)} 个管理站点")
-        site_options = []
-        for site in managed_sites:
-            site_option = {
-                'title': site.get('name', ''),
-                'value': str(site.get('id', ''))
-            }
-            if site_option['title'] and site_option['value']:
-                site_options.append(site_option)
-                logger.info(f"添加站点选项: {site_option}")
+        site_options = [
+            {"title": site["name"], "value": str(site["id"])}
+            for site in managed_sites 
+            if site.get("name") and site.get("id")
+        ]
         
-        # 构建配置表单，按照MoviePilot插件系统要求包裹在VForm中
+        # 简化配置表单结构，确保插件系统能正确解析
         config_form = [
             {
-                'component': 'VForm',
-                'content': [
+                "component": "VForm",
+                "content": [
                     {
-                        'component': 'VCard',
-                        'props': {
-                            'variant': 'flat',
-                            'class': 'mb-6',
-                            'color': 'surface'
-                        },
-                        'content': [
+                        "component": "VRow",
+                        "content": [
                             {
-                                'component': 'VCardItem',
-                                'props': {
-                                    'class': 'pa-6'
+                                "component": "VCol",
+                                "props": {
+                                    "cols": 12,
+                                    "sm": 6
                                 },
-                                'content': [
+                                "content": [
                                     {
-                                        'component': 'VCardTitle',
-                                        'props': {
-                                            'class': 'd-flex align-center text-h6'
-                                        },
-                                        'content': [
-                                            {
-                                                'component': 'VIcon',
-                                                'props': {
-                                                    'style': 'color: #16b1ff',
-                                                    'class': 'mr-3',
-                                                    'size': 'default'
-                                                },
-                                                'text': 'mdi-cog'
-                                            },
-                                            {
-                                                'component': 'span',
-                                                'text': '基本设置'
-                                            }
-                                        ]
+                                        "component": "VSwitch",
+                                        "props": {
+                                            "model": "inviterinfo_enabled",
+                                            "label": "启用插件",
+                                            "color": "primary"
+                                        }
                                     }
                                 ]
                             },
                             {
-                                'component': 'VCardText',
-                                'props': {
-                                    'class': 'px-6 pb-6'
+                                "component": "VCol",
+                                "props": {
+                                    "cols": 12,
+                                    "sm": 6
                                 },
-                                'content': [
+                                "content": [
                                     {
-                                        'component': 'VRow',
-                                        'content': [
-                                            {
-                                                'component': 'VCol',
-                                                'props': {
-                                                    'cols': 12,
-                                                    'sm': 6,
-                                                    'md': 3
-                                                },
-                                                'content': [
-                                                    {
-                                                        'component': 'VSwitch',
-                                                        'props': {
-                                                            'model': 'inviterinfo_enabled',
-                                                            'label': '启用插件',
-                                                            'color': 'primary',
-                                                            'hide_details': True
-                                                        }
-                                                    }
-                                                ]
-                                            },
-                                            {
-                                                'component': 'VCol',
-                                                'props': {
-                                                    'cols': 12,
-                                                    'sm': 6,
-                                                    'md': 3
-                                                },
-                                                'content': [
-                                                    {
-                                                        'component': 'VSwitch',
-                                                        'props': {
-                                                            'model': 'inviterinfo_onlyonce',
-                                                            'label': '立即运行一次',
-                                                            'color': 'primary',
-                                                            'hide_details': True
-                                                        }
-                                                    }
-                                                ]
-                                            },
-                                            {
-                                                'component': 'VCol',
-                                                'props': {
-                                                    'cols': 12,
-                                                    'sm': 6,
-                                                    'md': 3
-                                                },
-                                                'content': [
-                                                    {
-                                                        'component': 'VSwitch',
-                                                        'props': {
-                                                            'model': 'inviterinfo_aborttask',
-                                                            'label': '立即中断任务',
-                                                            'color': 'primary',
-                                                            'hide_details': True
-                                                        }
-                                                    }
-                                                ]
-                                            }
-                                        ]
-                                    },
+                                        "component": "VSwitch",
+                                        "props": {
+                                            "model": "inviterinfo_onlyonce",
+                                            "label": "立即运行一次",
+                                            "color": "primary"
+                                        }
+                                    }
+                                ]
+                            },
+                            {
+                                "component": "VCol",
+                                "props": {
+                                    "cols": 12,
+                                    "sm": 6
+                                },
+                                "content": [
                                     {
-                                        'component': 'VRow',
-                                        'content': [
-                                            {
-                                                'component': 'VCol',
-                                                'props': {
-                                                    'cols': 12
-                                                },
-                                                'content': [
-                                                    {
-                                                        'component': 'VSelect',
-                                                        'props': {
-                                                            'model': 'inviterinfo_selected_sites',
-                                                            'label': '选择要分析的PT站点',
-                                                            'items': site_options,
-                                                            'multiple': True,
-                                                            'clearable': True,
-                                                            'chips': True,
-                                                            'small_chips': True,
-                                                            'hide_details': True,
-                                                            'item_text': 'title',
-                                                            'item_value': 'value',
-                                                            'variant': 'outlined',
-                                                            'color': 'primary'
-                                                        }
-                                                    }
-                                                ]
-                                            }
-                                        ]
+                                        "component": "VSwitch",
+                                        "props": {
+                                            "model": "inviterinfo_aborttask",
+                                            "label": "立即中断任务",
+                                            "color": "primary"
+                                        }
+                                    }
+                                ]
+                            }
+                        ]
+                    },
+                    {
+                        "component": "VRow",
+                        "content": [
+                            {
+                                "component": "VCol",
+                                "props": {
+                                    "cols": 12
+                                },
+                                "content": [
+                                    {
+                                        "component": "VSelect",
+                                        "props": {
+                                            "model": "inviterinfo_selected_sites",
+                                            "label": "选择要分析的PT站点",
+                                            "items": site_options,
+                                            "multiple": True,
+                                            "clearable": True,
+                                            "chips": True,
+                                            "item_text": "title",
+                                            "item_value": "value",
+                                            "variant": "outlined",
+                                            "color": "primary"
+                                        }
                                     }
                                 ]
                             }
@@ -290,10 +229,10 @@ class InviterInfo(_PluginBase):
         ]
         
         return config_form, {
-            'inviterinfo_enabled': False,
-            'inviterinfo_onlyonce': False,
-            'inviterinfo_aborttask': False,
-            'inviterinfo_selected_sites': []
+            "inviterinfo_enabled": False,
+            "inviterinfo_onlyonce": False,
+            "inviterinfo_aborttask": False,
+            "inviterinfo_selected_sites": []
         }
 
     def get_page(self) -> List[dict]:

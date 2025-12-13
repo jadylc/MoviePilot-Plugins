@@ -309,10 +309,10 @@ class _IInviterInfoHandler(metaclass=ABCMeta):
                             break
             
             logger.debug(f"获取用户ID完成，耗时: {time.time() - start_time:.2f}秒，结果: {user_id}")
-        return user_id
-    except Exception as e:
-        logger.error(f"获取用户ID失败: {str(e)}")
-        return None
+            return user_id
+        except Exception as e:
+            logger.error(f"获取用户ID失败: {str(e)}")
+            return None
 
     def parse_response(self, html_content: str, xpath_rules: Dict[str, str]) -> Dict[str, Optional[str]]:
         """
