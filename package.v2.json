@@ -20,6 +20,18 @@
       "v1.0": "MoviePilot V2 版本站点数据统计插件"
     }
   },
+  "InviterInfo": {
+    "name": "PT站邀请人统计",
+    "description": "统计所有PT站的上家信息，包括邀请人信息和邮箱（如果隐私设置允许）。",
+    "labels": "PT站,统计",
+    "version": "1.0",
+    "icon": "user.png",
+    "author": "MoviePilot",
+    "level": 2,
+    "history": {
+      "v1.0": "MoviePilot V2 版本PT站邀请人统计插件"
+    }
+  },
   "BrushFlow": {
     "name": "站点刷流",
     "description": "自动托管刷流，将会提高对应站点的访问频率。",
