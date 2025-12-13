@@ -7,6 +7,7 @@ from app.core.config import settings
 from app.core.event import eventmanager, Event
 from app.db.models.siteuserdata import SiteUserData
 from app.db.site_oper import SiteOper
+from app.helper.module import ModuleHelper
 from app.helper.sites import SitesHelper
 from app.log import logger
 from app.plugins import _PluginBase
@@ -24,11 +25,11 @@ class InviterInfo(_PluginBase):
     # 插件名称
     plugin_name = "PT站邀请人统计"
     # 插件描述
-    plugin_desc = "统计所有PT站的上家信息，包括邀请人信息和邮箱（如果隐私设置允许）。"
+    plugin_desc = "统计所有PT站的上家信息，包括邀请人信息和邮箱（如果隐私设置允许）"
     # 插件图标
     plugin_icon = "user.png"
     # 插件版本
-    plugin_version = "1.0"
+    plugin_version = "1.1"
     # 插件作者
     plugin_author = "MoviePilot"
     # 作者主页
@@ -43,12 +44,24 @@ class InviterInfo(_PluginBase):
     # 配置属性
     _enabled: bool = False
     _onlyonce: bool = False
+    _selected_sites: list = []
+    
+    # 站点处理器
+    _site_handlers: list = []
 
     def init_plugin(self, config: dict = None):
+        logger.info("开始初始化PT站邀请人统计插件")
         # 配置
         if config:
+            logger.info(f"获取到插件配置: {config}")
             self._enabled = config.get("enabled")
             self._onlyonce = config.get("onlyonce")
+            self._selected_sites = config.get("selected_sites", [])
+        
+        # 加载站点处理器
+        logger.info("开始加载站点处理器")
+        self._load_site_handlers()
+        logger.info("PT站邀请人统计插件初始化完成")
 
     def get_state(self) -> bool:
         return self._enabled
@@ -60,10 +73,41 @@ class InviterInfo(_PluginBase):
     def get_api(self) -> List[Dict[str, Any]]:
         return []
 
+    def _load_site_handlers(self):
+        """
+        加载站点处理器
+        """
+        try:
+            logger.info("开始加载sites目录下的站点处理器")
+            # 使用ModuleHelper加载sites目录下的所有站点处理器
+            self._site_handlers = ModuleHelper.load('app.plugins.inviterinfo.sites',
+                                                   filter_func=lambda _, obj: hasattr(obj, 'match'))
+            logger.info(f"成功加载 {len(self._site_handlers)} 个站点处理器")
+            # 记录每个加载的处理器
+            for handler_cls in self._site_handlers:
+                logger.info(f"加载站点处理器: {handler_cls.__name__}")
+        except Exception as e:
+            logger.error(f"加载站点处理器失败: {e}")
+            logger.exception(e)
+            self._site_handlers = []
+
     def get_form(self) -> Tuple[List[dict], Dict[str, Any]]:
         """
         拼装插件配置页面
         """
+        logger.info("开始生成插件配置表单")
+        # 获取所有活跃站点
+        sites = SiteOper().list_active()
+        logger.info(f"获取到 {len(sites)} 个活跃站点")
+        site_options = []
+        for site in sites:
+            site_option = {
+                "label": site.name,
+                "value": str(site.id)
+            }
+            site_options.append(site_option)
+            logger.info(f"添加站点选项: {site_option}")
+        
         return [
             {
                 'component': 'VForm',
@@ -104,20 +148,51 @@ class InviterInfo(_PluginBase):
                                 ]
                             }
                         ]
+                    },
+                    {
+                        'component': 'VRow',
+                        'content': [
+                            {
+                                'component': 'VCol',
+                                'props': {
+                                    'cols': 12
+                                },
+                                'content': [
+                                    {
+                                        'component': 'VSelect',
+                                        'props': {
+                                            'model': 'selected_sites',
+                                            'label': '选择要分析的PT站点',
+                                            'items': site_options,
+                                            'multiple': True,
+                                            'clearable': True,
+                                            'chips': True,
+                                            'small_chips': True,
+                                            'hide_details': True,
+                                            'item_text': 'label',
+                                            'item_value': 'value'
+                                        }
+                                    }
+                                ]
+                            }
+                        ]
                     }
                 ]
             }
         ], {
             "enabled": False,
-            "onlyonce": False
+            "onlyonce": False,
+            "selected_sites": []
         }
 
     def get_page(self) -> List[dict]:
         """
         获取插件页面
         """
+        logger.info("开始生成插件页面")
         # 获取所有站点数据
         site_data = self.__get_all_site_inviter_info()
+        logger.info(f"获取到 {len(site_data)} 个站点的邀请人信息")
         
         # 构建表格组件
         table_columns = [
@@ -127,16 +202,20 @@ class InviterInfo(_PluginBase):
             {"title": "邮箱", "key": "inviter_email", "width": 200},
             {"title": "获取时间", "key": "get_time", "width": 150}
         ]
+        logger.info(f"构建表格，包含 {len(table_columns)} 列")
         
         table_rows = []
         for site_name, inviter_info in site_data.items():
-            table_rows.append({
+            table_row = {
                 "site_name": site_name,
                 "inviter_name": inviter_info.get("inviter_name", "-"),
                 "inviter_id": inviter_info.get("inviter_id", "-"),
                 "inviter_email": inviter_info.get("inviter_email", "-"),
                 "get_time": inviter_info.get("get_time", "-")
-            })
+            }
+            table_rows.append(table_row)
+            logger.info(f"添加表格行: {table_row}")
+        logger.info(f"构建表格，包含 {len(table_rows)} 行数据")
         
         return [
             {
@@ -168,233 +247,152 @@ class InviterInfo(_PluginBase):
         """
         获取所有站点的邀请人信息
         """
+        logger.info("开始获取所有站点的邀请人信息")
         site_data = {}
         
         # 获取所有活跃站点
         sites = SiteOper().list_active()
+        logger.info(f"获取到 {len(sites)} 个活跃站点")
         if not sites:
+            logger.info("没有找到活跃站点，直接返回")
             return site_data
         
+        # 如果没有加载到站点处理器，尝试重新加载
+        if not self._site_handlers:
+            logger.info("没有加载到站点处理器，尝试重新加载")
+            self._load_site_handlers()
+        
         # 遍历所有站点
+        logger.info(f"用户选择的站点列表: {self._selected_sites}")
         for site in sites:
             try:
-                # 根据站点域名获取邀请人信息
-                domain = site.domain
+                logger.info(f"开始处理站点: {site.name} (ID: {site.id})")
+                # 检查站点是否在用户选择的站点列表中
+                if self._selected_sites and str(site.id) not in self._selected_sites:
+                    logger.info(f"站点 {site.name} 不在用户选择的站点列表中，跳过")
+                    continue
+                    
+                # 构建站点信息
                 site_info = {
+                    "id": site.id,
+                    "name": site.name,
+                    "url": site.url,
                     "cookie": site.cookie,
                     "ua": site.ua,
                     "proxy": site.proxy,
-                    "timeout": site.timeout
+                    "timeout": site.timeout or 20
                 }
+                logger.info(f"构建站点信息: {site_info}")
                 
-                inviter_info = {}
+                logger.info(f"开始获取站点 {site.name} 的邀请人信息")
                 
-                # 根据站点域名调用不同的处理方法
-                if "hdchina.org" in domain:
-                    inviter_info = self.__get_hdchina_inviter_info(site_info)
-                elif "chdbits.co" in domain:
-                    inviter_info = self.__get_chdbits_inviter_info(site_info)
-                elif "tjupt.org" in domain:
-                    inviter_info = self.__get_tjupt_inviter_info(site_info)
-                # 可以继续添加其他站点的处理方法
+                # 查找匹配的站点处理器
+                matched_handler = None
+                logger.info(f"开始查找匹配的站点处理器，共有 {len(self._site_handlers)} 个处理器")
+                for handler_cls in self._site_handlers:
+                    handler = handler_cls()
+                    logger.info(f"尝试处理器: {handler_cls.__name__}")
+                    if handler.match(site.url):
+                        matched_handler = handler
+                        logger.info(f"找到匹配的站点处理器: {handler_cls.__name__}")
+                        break
                 
-                if inviter_info:
-                    # 添加获取时间
-                    inviter_info["get_time"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                    site_data[site.name] = inviter_info
+                # 如果没有找到匹配的处理器，尝试使用NexusPHP通用处理器
+                if not matched_handler:
+                    logger.info(f"没有找到匹配的站点处理器，尝试检查是否为NexusPHP站点")
+                    from app.plugins.inviterinfo.sites.nexusphp import NexusPHPInviterInfoHandler
+                    # 检查是否是NexusPHP站点
+                    if self.__is_nexusphp_site(site_info):
+                        matched_handler = NexusPHPInviterInfoHandler()
+                        logger.info(f"站点 {site.name} 使用NexusPHP通用处理器")
+                    else:
+                        logger.info(f"站点 {site.name} 不是NexusPHP站点，无法处理")
+                
+                # 获取邀请人信息
+                inviter_info = None
+                if matched_handler:
+                    logger.info(f"使用处理器 {matched_handler.__class__.__name__} 获取邀请人信息")
+                    inviter_info = matched_handler.get_inviter_info(site_info)
+                    logger.info(f"成功获取站点 {site.name} 的邀请人信息: {inviter_info}")
+                else:
+                    logger.info(f"站点 {site.name} 暂不支持邀请人信息获取")
+                    
+                # 保存邀请人信息
+                if inviter_info is not None:
+                    logger.info(f"开始保存站点 {site.name} 的邀请人信息")
+                    site_data_entry = {
+                        "inviter_name": inviter_info.get("inviter_name", "-"),
+                        "inviter_id": inviter_info.get("inviter_id", "-"),
+                        "inviter_email": inviter_info.get("inviter_email", "-"),
+                        "get_time": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                    }
+                    site_data[site.name] = site_data_entry
+                    logger.info(f"成功保存站点 {site.name} 的邀请人信息: {site_data_entry}")
+                else:
+                    logger.info(f"站点 {site.name} 的邀请人信息为None，不保存")
+                    
             except Exception as e:
-                logger.error(f"获取站点 {site.name} 邀请人信息失败: {e}")
+                logger.error(f"获取站点 {site.name} 的邀请人信息失败: {e}")
+                continue
         
         return site_data
-
-    def __get_hdchina_inviter_info(self, site_info: Dict[str, Any]) -> Dict[str, Any]:
+    
+    def __is_nexusphp_site(self, site_info: dict) -> bool:
         """
-        获取HDChina站点的邀请人信息
+        判断站点是否为NexusPHP站点
+        :param site_info: 站点信息
+        :return: 是否为NexusPHP站点
         """
-        url = "https://hdchina.org/userdetails.php?id=0"
-        cookie = site_info.get("cookie")
-        ua = site_info.get("ua")
-        proxy = site_info.get("proxy")
-        timeout = site_info.get("timeout")
-        
-        res = RequestUtils(cookies=cookie, ua=ua, proxies=settings.PROXY if proxy else None, timeout=timeout).get_res(url=url)
-        if not res or res.status_code != 200:
-            return {}
-        
-        html = etree.HTML(res.text)
-        if not html:
-            return {}
-        
-        # 查找邀请人信息
-        inviter_xpath = "//div[@class='userinfo']//li[contains(text(), '邀请人')]/text()"
-        inviter_texts = html.xpath(inviter_xpath)
-        if not inviter_texts:
-            return {}
-        
-        # 解析邀请人信息
-        inviter_text = inviter_texts[0]
-        inviter_name = inviter_text.split("：")[1].strip() if "：" in inviter_text else ""
-        
-        # 查找邀请人ID和邮箱（如果隐私设置允许）
-        inviter_id = ""
-        inviter_email = ""
-        
-        # 尝试从邀请人链接中获取ID
-        inviter_link_xpath = "//div[@class='userinfo']//li[contains(text(), '邀请人')]/a/@href"
-        inviter_links = html.xpath(inviter_link_xpath)
-        if inviter_links:
-            inviter_link = inviter_links[0]
-            if "id=" in inviter_link:
-                inviter_id = inviter_link.split("id=")[1].split("&")[0]
+        logger.info(f"开始判断站点 {site_info.get('name')} 是否为NexusPHP站点")
+        try:
+            site_url = site_info.get("url")
+            if not site_url:
+                logger.info("站点URL为空，无法判断是否为NexusPHP站点")
+                return False
                 
-                # 如果有邀请人ID，尝试获取其邮箱（如果隐私设置允许）
-                if inviter_id:
-                    inviter_email = self.__get_user_email("hdchina.org", inviter_id, site_info)
-        
-        return {
-            "inviter_name": inviter_name,
-            "inviter_id": inviter_id,
-            "inviter_email": inviter_email
-        }
-
-    def __get_chdbits_inviter_info(self, site_info: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        获取CHDBits站点的邀请人信息
-        """
-        url = "https://chdbits.co/userdetails.php?id=0"
-        cookie = site_info.get("cookie")
-        ua = site_info.get("ua")
-        proxy = site_info.get("proxy")
-        timeout = site_info.get("timeout")
-        
-        res = RequestUtils(cookies=cookie, ua=ua, proxies=settings.PROXY if proxy else None, timeout=timeout).get_res(url=url)
-        if not res or res.status_code != 200:
-            return {}
-        
-        html = etree.HTML(res.text)
-        if not html:
-            return {}
-        
-        # 查找邀请人信息
-        inviter_xpath = "//div[@class='profile']//li[contains(text(), '邀请人')]"
-        inviter_elements = html.xpath(inviter_xpath)
-        if not inviter_elements:
-            return {}
-        
-        # 解析邀请人信息
-        inviter_name = ""
-        inviter_id = ""
-        
-        inviter_element = inviter_elements[0]
-        # 获取邀请人名称
-        name_elements = inviter_element.xpath(".//a/text()")
-        if name_elements:
-            inviter_name = name_elements[0].strip()
-        
-        # 获取邀请人ID
-        link_elements = inviter_element.xpath(".//a/@href")
-        if link_elements:
-            link = link_elements[0]
-            if "id=" in link:
-                inviter_id = link.split("id=")[1].split("&")[0]
-                
-                # 如果有邀请人ID，尝试获取其邮箱（如果隐私设置允许）
-                inviter_email = self.__get_user_email("chdbits.co", inviter_id, site_info)
-        
-        return {
-            "inviter_name": inviter_name,
-            "inviter_id": inviter_id,
-            "inviter_email": inviter_email
-        }
-
-    def __get_tjupt_inviter_info(self, site_info: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        获取TJUPT站点的邀请人信息
-        """
-        url = "https://tjupt.org/userdetails.php?id=0"
-        cookie = site_info.get("cookie")
-        ua = site_info.get("ua")
-        proxy = site_info.get("proxy")
-        timeout = site_info.get("timeout")
-        
-        res = RequestUtils(cookies=cookie, ua=ua, proxies=settings.PROXY if proxy else None, timeout=timeout).get_res(url=url)
-        if not res or res.status_code != 200:
-            return {}
-        
-        html = etree.HTML(res.text)
-        if not html:
-            return {}
-        
-        # 查找邀请人信息
-        inviter_xpath = "//div[@class='userinfo']//li[contains(text(), '邀请人')]"
-        inviter_elements = html.xpath(inviter_xpath)
-        if not inviter_elements:
-            return {}
-        
-        # 解析邀请人信息
-        inviter_name = ""
-        inviter_id = ""
-        
-        inviter_element = inviter_elements[0]
-        # 获取邀请人名称
-        name_elements = inviter_element.xpath(".//a/text()")
-        if name_elements:
-            inviter_name = name_elements[0].strip()
-        
-        # 获取邀请人ID
-        link_elements = inviter_element.xpath(".//a/@href")
-        if link_elements:
-            link = link_elements[0]
-            if "id=" in link:
-                inviter_id = link.split("id=")[1].split("&")[0]
-                
-                # 如果有邀请人ID，尝试获取其邮箱（如果隐私设置允许）
-                inviter_email = self.__get_user_email("tjupt.org", inviter_id, site_info)
-        
-        return {
-            "inviter_name": inviter_name,
-            "inviter_id": inviter_id,
-            "inviter_email": inviter_email
-        }
-
-    def __get_user_email(self, domain: str, user_id: str, site_info: Dict[str, Any]) -> str:
-        """
-        获取用户邮箱（如果隐私设置允许）
-        """
-        url = f"https://{domain}/userdetails.php?id={user_id}"
-        cookie = site_info.get("cookie")
-        ua = site_info.get("ua")
-        proxy = site_info.get("proxy")
-        timeout = site_info.get("timeout")
-        
-        res = RequestUtils(cookies=cookie, ua=ua, proxies=settings.PROXY if proxy else None, timeout=timeout).get_res(url=url)
-        if not res or res.status_code != 200:
-            return ""
-        
-        html = etree.HTML(res.text)
-        if not html:
-            return ""
-        
-        # 查找邮箱信息（不同站点的XPath可能不同）
-        email_xpath = ""
-        if "hdchina.org" in domain:
-            email_xpath = "//div[@class='userinfo']//li[contains(text(), '邮箱')]/text()"
-        elif "chdbits.co" in domain:
-            email_xpath = "//div[@class='profile']//li[contains(text(), '邮箱')]/text()"
-        elif "tjupt.org" in domain:
-            email_xpath = "//div[@class='userinfo']//li[contains(text(), '邮箱')]/text()"
-        
-        if not email_xpath:
-            return ""
-        
-        email_texts = html.xpath(email_xpath)
-        if not email_texts:
-            return ""
-        
-        # 解析邮箱信息
-        email_text = email_texts[0]
-        email = email_text.split("：")[1].strip() if "：" in email_text else ""
-        return email
+            # 尝试访问用户详情页
+            user_url = f"{site_url}/userdetails.php?id=0"
+            logger.info(f"尝试访问用户详情页: {user_url}")
+            cookie = site_info.get("cookie")
+            ua = site_info.get("ua")
+            proxy = site_info.get("proxy")
+            timeout = site_info.get("timeout", 20)
+            
+            headers = {
+                "User-Agent": ua,
+                "Cookie": cookie
+            }
+            logger.info(f"使用Headers: {headers}")
+            
+            res = RequestUtils(headers=headers,
+                               proxies=settings.PROXY if proxy else None,
+                               timeout=timeout).get_res(url=user_url)
+            
+            if res:
+                logger.info(f"获取页面状态码: {res.status_code}")
+                if res.status_code == 200:
+                    # 检查页面是否包含NexusPHP特征
+                    logger.info("检查页面是否包含NexusPHP特征")
+                    has_userdetails = "userdetails" in res.text
+                    has_nexusphp = "NexusPHP" in res.text
+                    has_powered_by = "Powered by" in res.text
+                    logger.info(f"页面特征检测: userdetails={has_userdetails}, NexusPHP={has_nexusphp}, Powered by={has_powered_by}")
+                    if has_userdetails and (has_nexusphp or has_powered_by):
+                        logger.info(f"站点 {site_info.get('name')} 是NexusPHP站点")
+                        return True
+                    else:
+                        logger.info(f"站点 {site_info.get('name')} 不是NexusPHP站点")
+                        return False
+                else:
+                    logger.info(f"获取页面失败，状态码: {res.status_code}")
+                    return False
+            else:
+                logger.info("获取页面无响应")
+                return False
+        except Exception as e:
+            logger.error(f"判断站点类型失败: {e}")
+            logger.exception(e)
+            return False
 
     def get_service(self) -> List[Dict[str, Any]]:
         return []
