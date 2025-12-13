@@ -29,7 +29,7 @@ class InviterInfo(_PluginBase):
     # 插件图标
     plugin_icon = "user.png"
     # 插件版本
-    plugin_version = "1.1"
+    plugin_version = "1.3"
     # 插件作者
     plugin_author = "MoviePilot"
     # 作者主页
@@ -58,6 +58,20 @@ class InviterInfo(_PluginBase):
             self._enabled = config.get("enabled")
             self._onlyonce = config.get("onlyonce")
             self._selected_sites = config.get("selected_sites", [])
+            
+            # 处理立即中断任务请求
+            aborttask = config.get("aborttask")
+            if aborttask:
+                logger.info("检测到aborttask标志为True，触发任务中断")
+                self.abort_run()
+            
+            # 如果onlyonce为True，执行一次数据收集
+            if self._onlyonce:
+                logger.info("检测到onlyonce标志为True，开始执行一次数据收集")
+                self.__get_all_site_inviter_info()
+                logger.info("数据收集完成")
+                # 重置onlyonce标志
+                self._onlyonce = False
         
         # 加载站点处理器
         logger.info("开始加载站点处理器")
@@ -163,6 +177,22 @@ class InviterInfo(_PluginBase):
                                         }
                                     }
                                 ]
+                            },
+                            {
+                                'component': 'VCol',
+                                'props': {
+                                    'cols': 12,
+                                    'md': 4
+                                },
+                                'content': [
+                                    {
+                                        'component': 'VSwitch',
+                                        'props': {
+                                            'model': 'aborttask',
+                                            'label': '立即中断任务',
+                                        }
+                                    }
+                                ]
                             }
                         ]
                     },
@@ -199,6 +229,7 @@ class InviterInfo(_PluginBase):
         ], {
             "enabled": False,
             "onlyonce": False,
+            "aborttask": False,
             "selected_sites": []
         }
 
@@ -207,13 +238,10 @@ class InviterInfo(_PluginBase):
         获取插件页面
         """
         logger.info("开始生成插件页面")
-        # 获取所有站点数据
-        site_data = {}
-        if self._enabled:
-            site_data = self.__get_all_site_inviter_info()
-            logger.info(f"获取到 {len(site_data)} 个站点的邀请人信息")
-        else:
-            logger.info("插件未启用，不获取站点邀请人信息")
+        # 获取所有站点数据（仅显示已有的数据，不自动收集）
+        site_data = self.__load_site_data()
+        logger.info(f"从持久化存储中加载了 {len(site_data)} 条站点数据")
+        logger.info("页面加载完成，不自动获取站点邀请人信息")
         
         # 构建表格组件
         table_columns = [
@@ -391,6 +419,8 @@ class InviterInfo(_PluginBase):
                     }
                     site_data[site.name] = site_data_entry
                     logger.info(f"成功保存站点 {site.name} 的邀请人信息: {site_data_entry}")
+                    # 保存到持久化存储
+                    self.__save_site_data(site_data)
                 else:
                     logger.info(f"站点 {site.name} 的邀请人信息为None，不保存")
                     
@@ -399,6 +429,52 @@ class InviterInfo(_PluginBase):
                 continue
         
         return site_data
+    
+    def __save_site_data(self, site_data: dict):
+        """
+        保存站点数据到JSON文件
+        :param site_data: 站点数据
+        """
+        import json
+        import os
+        try:
+            # 获取插件目录
+            plugin_dir = os.path.dirname(os.path.abspath(__file__))
+            data_file = os.path.join(plugin_dir, "site_data.json")
+            logger.info(f"开始保存站点数据到 {data_file}")
+            
+            with open(data_file, "w", encoding="utf-8") as f:
+                json.dump(site_data, f, ensure_ascii=False, indent=2)
+            logger.info(f"成功保存站点数据到 {data_file}")
+        except Exception as e:
+            logger.error(f"保存站点数据失败: {e}")
+            logger.exception(e)
+    
+    def __load_site_data(self) -> dict:
+        """
+        从JSON文件加载站点数据
+        :return: 站点数据
+        """
+        import json
+        import os
+        try:
+            # 获取插件目录
+            plugin_dir = os.path.dirname(os.path.abspath(__file__))
+            data_file = os.path.join(plugin_dir, "site_data.json")
+            logger.info(f"开始从 {data_file} 加载站点数据")
+            
+            if not os.path.exists(data_file):
+                logger.info(f"数据文件 {data_file} 不存在，返回空数据")
+                return {}
+            
+            with open(data_file, "r", encoding="utf-8") as f:
+                site_data = json.load(f)
+            logger.info(f"成功从 {data_file} 加载站点数据")
+            return site_data
+        except Exception as e:
+            logger.error(f"加载站点数据失败: {e}")
+            logger.exception(e)
+            return {}
     
     def __is_nexusphp_site(self, site_info: dict) -> bool:
         """

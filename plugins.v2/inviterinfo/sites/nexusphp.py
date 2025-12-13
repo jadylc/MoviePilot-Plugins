@@ -147,7 +147,9 @@ class NexusPHPInviterInfoHandler(_IInviterInfoHandler):
 
         # 尝试多种常见的邀请人信息XPath
         inviter_xpaths = [
-            # 表格结构（用户提供的HTML结构）
+            # 表格结构（用户提供的HTML结构） - 精确匹配
+            "//td[@class='rowhead' and text()='邀请人']/following-sibling::td[1]",
+            "//td[@class='rowhead nowrap' and text()='邀请人']/following-sibling::td[1]",
             "//td[text()='邀请人']/following-sibling::td[1]",
             "//td[@class='rowhead' and contains(text(), '邀请人')]/following-sibling::td[1]",
             "//td[contains(text(), '邀请人')]/following-sibling::td[1]",
@@ -421,14 +423,22 @@ class NexusPHPInviterInfoHandler(_IInviterInfoHandler):
         
         # 尝试从链接中获取名称（优先）
         logger.info("尝试从链接中获取邀请人名称")
-        name_elements = inviter_element.xpath(".//a/text()")
-        if name_elements:
-            for name in name_elements:
-                name = name.strip()
-                if name and not name.startswith("mailto:"):
-                    logger.info(f"从链接中提取到邀请人名称: {name}")
-                    inviter_name = name
-                    break
+        
+        # 先尝试处理<a>标签内有<b>标签的情况（用户提供的HTML结构）
+        nested_name = inviter_element.xpath(".//a/b/text()")
+        if nested_name:
+            inviter_name = nested_name[0].strip()
+            logger.info(f"从嵌套的<b>标签中提取到邀请人名称: {inviter_name}")
+        else:
+            # 尝试获取所有链接文本，包括嵌套标签内的文本
+            name_elements = inviter_element.xpath(".//a//text()")
+            if name_elements:
+                for name in name_elements:
+                    name = name.strip()
+                    if name and not name.startswith("mailto:"):
+                        logger.info(f"从链接中提取到邀请人名称: {name}")
+                        inviter_name = name
+                        break
         
         # 如果从链接中未找到，尝试从完整文本中提取
         if not inviter_name:
@@ -595,14 +605,36 @@ class NexusPHPInviterInfoHandler(_IInviterInfoHandler):
         inviter_id = ""
         link_elements = inviter_element.xpath(".//a/@href")
         if link_elements:
-            link = link_elements[0]
-            logger.info(f"从链接中提取到邀请人信息URL: {link}")
-            if "id=" in link:
-                logger.info("从URL中提取邀请人ID")
-                inviter_id = link.split("id=")[1].split("&")[0]
-                logger.info(f"提取到的邀请人ID: {inviter_id}")
-            else:
-                logger.info("URL中未包含邀请人ID信息")
+            # 处理所有链接，优先选择包含id=的链接
+            found_link = None
+            for link in link_elements:
+                link = link.strip()  # 去除链接中的前后空格
+                if "id=" in link:
+                    found_link = link
+                    break
+            
+            # 如果没有找到包含id=的链接，使用第一个链接
+            if not found_link and link_elements:
+                found_link = link_elements[0].strip()
+            
+            if found_link:
+                logger.info(f"从链接中提取到邀请人信息URL: {found_link}")
+                if "id=" in found_link:
+                    logger.info("从URL中提取邀请人ID")
+                    # 提取ID，确保处理各种格式
+                    id_part = found_link.split("id=")[-1].split("&")[0].strip()
+                    # 确保ID是数字
+                    if id_part.isdigit():
+                        inviter_id = id_part
+                    else:
+                        # 尝试从链接路径中提取ID
+                        import re
+                        id_match = re.search(r"id=([0-9]+)", found_link)
+                        if id_match:
+                            inviter_id = id_match.group(1)
+                    logger.info(f"提取到的邀请人ID: {inviter_id}")
+                else:
+                    logger.info("URL中未包含邀请人ID信息")
         else:
             logger.info("未找到邀请人相关的链接")
 
@@ -663,7 +695,9 @@ class NexusPHPInviterInfoHandler(_IInviterInfoHandler):
 
         # 尝试多种常见的邮箱信息XPath
         email_xpaths = [
-            # 表格结构（用户提供的HTML结构）- 从链接中提取
+            # 表格结构（用户提供的HTML结构）- 从链接中提取，精确匹配
+            "//td[@class='rowhead nowrap' and text()='邮箱']/following-sibling::td[1]//a/@href",
+            "//td[@class='rowhead' and text()='邮箱']/following-sibling::td[1]//a/@href",
             "//td[text()='邮箱']/following-sibling::td[1]//a/@href",
             "//td[@class='rowhead' and contains(text(), '邮箱')]/following-sibling::td[1]//a/@href",
             # 表格结构 - 直接提取文本
