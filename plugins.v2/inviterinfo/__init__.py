@@ -1,5 +1,6 @@
 from typing import Optional, Any, List, Dict, Tuple
 from datetime import datetime
+import threading
 from threading import Lock
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
@@ -60,6 +61,8 @@ class InviterInfo(_PluginBase):
 
     def init_plugin(self, config: dict = None):
         logger.info("开始初始化PT站邀请人统计插件")
+        # 初始化日志内容
+        self._log_content = ""
         # 配置
         if config:
             logger.info(f"获取到插件配置: {config}")
@@ -75,6 +78,10 @@ class InviterInfo(_PluginBase):
             if aborttask:
                 logger.info("检测到aborttask标志为True，触发任务中断")
                 self.abort_run()
+                # 重置aborttask标志
+                self._abort_flag = False
+                # 更新配置到数据库
+                self.update_config({"inviterinfo_aborttask": False})
             
             # 如果onlyonce为True，执行一次数据收集（后台运行）
             if self._onlyonce:
@@ -86,6 +93,8 @@ class InviterInfo(_PluginBase):
                 logger.info("后台数据收集线程已启动")
                 # 重置onlyonce标志
                 self._onlyonce = False
+                # 更新配置到数据库
+                self.update_config({"inviterinfo_onlyonce": False})
         
         # 加载站点处理器
         logger.info("开始加载站点处理器")
@@ -118,6 +127,13 @@ class InviterInfo(_PluginBase):
                 "summary": "表格排序",
                 "description": "根据指定字段对表格数据进行排序",
                 "func": self.sort_table
+            },
+            {
+                "path": "get_log",
+                "methods": ["GET"],
+                "summary": "获取执行日志",
+                "description": "获取当前执行任务的日志内容",
+                "func": self.get_log
             }
         ]
     
@@ -128,6 +144,12 @@ class InviterInfo(_PluginBase):
         with lock:
             self._abort_flag = True
         logger.info("收到中止信号，将终止邀请人信息收集")
+    
+    def get_log(self):
+        """
+        获取执行日志
+        """
+        return {"log": getattr(self, '_log_content', '')}
 
     def _load_site_handlers(self):
         """
@@ -164,6 +186,9 @@ class InviterInfo(_PluginBase):
         config_form = [
             {
                 "component": "VForm",
+                "on": {
+                    "submit": "() => { this.$emit('submit'); }"
+                },
                 "content": [
                     {
                         "component": "VRow",
@@ -313,8 +338,10 @@ class InviterInfo(_PluginBase):
                                             "label": "全选",
                                             "variant": "outlined",
                                             "color": "primary",
-                                            "class": "mt-2",
-                                            "click": "() => { $refs.selectSite.internalValue = site_options.map(item => item.value); }"
+                                            "class": "mt-2"
+                                        },
+                                        "on": {
+                                            "click": "() => { $refs.selectSite.internalValue = $refs.selectSite.items.map(item => item.value); }"
                                         }
                                     }
                                 ]
@@ -344,6 +371,9 @@ class InviterInfo(_PluginBase):
         site_data = self.__load_site_data()
         logger.info(f"从持久化存储中加载了 {len(site_data)} 条站点数据")
         logger.info("页面加载完成，不自动获取站点邀请人信息")
+        
+        # 获取当前日志信息
+        log_content = getattr(self, '_log_content', '')
         
         # 构建表格数据
         table_rows = []
@@ -417,6 +447,45 @@ class InviterInfo(_PluginBase):
                     {
                         "component": "VCardText",
                         "content": [
+                            {
+                                "component": "VExpansionPanels",
+                                "content": [
+                                    {
+                                        "component": "VExpansionPanel",
+                                        "content": [
+                                            {
+                                                "component": "VExpansionPanelTitle",
+                                                "content": "执行日志"
+                                            },
+                                            {"component": "VExpansionPanelText",
+                                                "props": {
+                                                    "class": "log-content"
+                                                },
+                                                "content": [
+                                                    {
+                                                        "component": "pre",
+                                                        "props": {
+                                                            "style": {
+                                                                "max-height": "200px",
+                                                                "overflow": "auto",
+                                                                "background-color": "#f5f5f5",
+                                                                "padding": "10px",
+                                                                "border-radius": "4px"
+                                                            },
+                                                            "id": "inviterinfo-log"
+                                                        },
+                                                        "text": log_content
+                                                    },
+                                                    {
+                                                        "component": "script",
+                                                        "content": "\nfunction updateInviterInfoLog() {\n  invokePluginApi('inviterinfo', 'get_log').then(response => {\n    const logElement = document.getElementById('inviterinfo-log');\n    if (logElement && response && response.log) {\n      logElement.textContent = response.log;\n      logElement.scrollTop = logElement.scrollHeight;\n    }\n  });\n}\n\n// 初始调用一次\nupdateInviterInfoLog();\n\n// 设置定时器，每2秒更新一次\nconst logUpdateInterval = setInterval(updateInviterInfoLog, 2000);\n\n// 组件销毁时清除定时器\nwindow.addEventListener('beforeunload', () => {\n  clearInterval(logUpdateInterval);\n});\n"
+                                                    }
+                                                ]
+                                            }
+                                        ]
+                                    }
+                                ]
+                            },
                             {
                                 "component": "VTable",
                                 "props": {
@@ -608,19 +677,33 @@ class InviterInfo(_PluginBase):
         获取所有站点的邀请人信息
         :param force_refresh: 是否强制刷新所有数据，即使已存在
         """
-        logger.info("=== 开始获取所有站点的邀请人信息 ====")
+        start_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        log_msg = f"[{start_time}] === 开始获取所有站点的邀请人信息 ===\n"
+        logger.info(log_msg.strip())
+        
+        # 更新日志内容
+        self._log_content = log_msg
         
         # 先加载已有的数据，避免清除未勾选站点的历史数据
         site_data = self.__load_site_data()
         initial_count = len(site_data)
         
+        log_msg = f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 已加载 {initial_count} 个站点的历史数据\n"
+        logger.info(log_msg.strip())
+        self._log_content += log_msg
+        
         # 获取所有活跃站点
         try:
             sites_helper = SitesHelper()
             managed_sites = sites_helper.get_indexers()
-            logger.info(f"成功获取到 {len(managed_sites)} 个活跃站点")
+            log_msg = f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 成功获取到 {len(managed_sites)} 个活跃站点\n"
+            logger.info(log_msg.strip())
+            self._log_content += log_msg
+            
             if not managed_sites:
-                logger.info("没有找到活跃站点，直接返回")
+                log_msg = f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 没有找到活跃站点，直接返回\n"
+                logger.info(log_msg.strip())
+                self._log_content += log_msg
                 return site_data
             # 转换为Site对象格式以兼容现有代码
             sites = []
@@ -643,21 +726,38 @@ class InviterInfo(_PluginBase):
         
         # 如果没有加载到站点处理器，尝试重新加载
         if not self._site_handlers:
-            logger.info("没有加载到站点处理器，尝试重新加载")
+            log_msg = f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 没有加载到站点处理器，尝试重新加载\n"
+            logger.info(log_msg.strip())
+            self._log_content += log_msg
             try:
                 self._load_site_handlers()
+                log_msg = f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 成功加载 {len(self._site_handlers)} 个站点处理器\n"
+                logger.info(log_msg.strip())
+                self._log_content += log_msg
             except Exception as e:
-                logger.error(f"重新加载站点处理器失败: {str(e)}")
-                logger.exception(e)
+                log_msg = f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 重新加载站点处理器失败: {str(e)}\n"
+                logger.error(log_msg.strip())
+                self._log_content += log_msg
         
         # 遍历所有站点
-        logger.info(f"用户选择的站点列表: {self._selected_sites}")
+        log_msg = f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 用户选择的站点列表: {self._selected_sites}\n"
+        logger.info(log_msg.strip())
+        self._log_content += log_msg
+        
+        processed_count = 0
+        success_count = 0
+        skip_count = 0
+        error_count = 0
+        
         for site in sites:
             # 检查是否收到中止信号
             with lock:
                 abort_flag = self._abort_flag
             if abort_flag:
                 logger.info("中止标志已设置，停止站点信息收集")
+                log_msg = f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] === 任务已中止 ===\n"
+                logger.info(log_msg.strip())
+                self._log_content += log_msg
                 # 重置中止标志
                 with lock:
                     self._abort_flag = False
@@ -665,15 +765,24 @@ class InviterInfo(_PluginBase):
             
             try:
                 logger.info(f"=== 开始处理站点: {site.name} (ID: {site.id}) ===")
+                log_msg = f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 开始处理站点: {site.name}\n"
+                logger.info(log_msg.strip())
+                self._log_content += log_msg
                 
                 # 检查站点是否在用户选择的站点列表中
                 if self._selected_sites and str(site.id) not in self._selected_sites:
                     logger.info(f"站点 {site.name} 不在用户选择的站点列表中，保持原有数据")
+                    log_msg = f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 站点 {site.name} 不在用户选择列表中，跳过\n"
+                    logger.info(log_msg.strip())
+                    self._log_content += log_msg
                     continue
                     
                 # 检查是否已有数据且不需要强制刷新
                 if not force_refresh and site.name in site_data:
                     logger.info(f"站点 {site.name} 已有邀请人数据，跳过获取")
+                    log_msg = f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 站点 {site.name} 已有数据，跳过获取\n"
+                    logger.info(log_msg.strip())
+                    self._log_content += log_msg
                     continue
                     
                 # 构建站点信息
@@ -694,13 +803,22 @@ class InviterInfo(_PluginBase):
                 matched_handler = None
                 try:
                     logger.info(f"开始查找匹配的站点处理器，共有 {len(self._site_handlers)} 个处理器可用")
+                    log_msg = f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 查找站点处理器...\n"
+                    logger.info(log_msg.strip())
+                    self._log_content += log_msg
                     # 使用ModuleLoader的get_handler_for_site方法查找匹配的处理器
                     from app.plugins.inviterinfo.module_loader import ModuleLoader
                     matched_handler = ModuleLoader.get_handler_for_site(site.url, self._site_handlers)
                     if matched_handler:
                         logger.info(f"成功获取站点处理器实例: {matched_handler.__class__.__name__}")
+                        log_msg = f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 成功获取站点处理器: {matched_handler.__class__.__name__}\n"
+                        logger.info(log_msg.strip())
+                        self._log_content += log_msg
                 except Exception as ex:
                     logger.error(f"查找站点处理器失败: {str(ex)}")
+                    log_msg = f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 查找站点处理器失败: {str(ex)}\n"
+                    logger.info(log_msg.strip())
+                    self._log_content += log_msg
                     logger.exception(ex)
                 
                 # 如果没有找到匹配的处理器，尝试使用NexusPHP通用处理器
@@ -710,12 +828,18 @@ class InviterInfo(_PluginBase):
                         abort_flag = self._abort_flag
                     if abort_flag:
                         logger.info("中止标志已设置，停止站点信息收集")
+                        log_msg = f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] === 任务已中止 ===\n"
+                        logger.info(log_msg.strip())
+                        self._log_content += log_msg
                         # 重置中止标志
                         with lock:
                             self._abort_flag = False
                         break
                     
                     logger.info(f"没有找到匹配的站点处理器，尝试检查是否为NexusPHP站点")
+                    log_msg = f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 未找到匹配处理器，尝试检查是否为NexusPHP站点...\n"
+                    logger.info(log_msg.strip())
+                    self._log_content += log_msg
                     try:
                         from app.plugins.inviterinfo.sites.nexusphp import NexusPHPInviterInfoHandler
                         # 使用NexusPHPInviterInfoHandler的is_nexusphp_site方法检查
@@ -740,13 +864,22 @@ class InviterInfo(_PluginBase):
                         if is_nexusphp:
                             matched_handler = nexusphp_handler
                             logger.info(f"站点 {site.name} 使用NexusPHP通用处理器")
+                            log_msg = f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 站点 {site.name} 是NexusPHP站点，使用通用处理器\n"
+                            logger.info(log_msg.strip())
+                            self._log_content += log_msg
                         else:
                             logger.info(f"站点 {site.name} 不是NexusPHP站点，无法处理")
+                            log_msg = f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 站点 {site.name} 不是NexusPHP站点，暂不支持\n"
+                            logger.info(log_msg.strip())
+                            self._log_content += log_msg
                             # 记录页面预览用于调试
                             if page_content:
                                 logger.debug(f"页面预览: {page_content[:500]}...")
                     except Exception as ex:
                         logger.error(f"检查站点类型失败: {str(ex)}")
+                        log_msg = f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 检查站点类型失败: {str(ex)}\n"
+                        logger.info(log_msg.strip())
+                        self._log_content += log_msg
                         logger.exception(ex)
                 
                 # 获取邀请人信息
