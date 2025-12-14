@@ -323,7 +323,7 @@ class InviterInfo(_PluginBase):
                             {
                                 "component": "VCol",
                                 "props": {
-                                    "cols": 10
+                                    "cols": 12
                                 },
                                 "content": [
                                     {
@@ -339,26 +339,8 @@ class InviterInfo(_PluginBase):
                                             "item_value": "value",
                                             "variant": "outlined",
                                             "color": "primary",
-                                            "ref": "selectSite"
-                                        }
-                                    }
-                                ]
-                            },
-                            {
-                                "component": "VCol",
-                                "props": {
-                                    "cols": 2
-                                },
-                                "content": [
-                                    {"component": "VBtn",
-                                        "props": {
-                                            "label": "全选",
-                                            "variant": "outlined",
-                                            "color": "primary",
-                                            "class": "mt-2"
-                                        },
-                                        "on": {
-                                            "click": "() => { $refs.selectSite.modelValue = site_options.map(item => item.value); }"
+                                            "hint": "默认不选择任何站点表示分析所有站点",
+                                            "persistent_hint": True
                                         }
                                     }
                                 ]
@@ -455,7 +437,9 @@ class InviterInfo(_PluginBase):
                                 "component": "VBtn",
                                 "props": {
                                     "color": "error",
-                                    "text": True,
+                                    "text": true
+                                },
+                                "on": {
                                     "click": "invokePluginApi('inviterinfo', 'abort_run')"
                                 },
                                 "content": "中止运行"
@@ -524,13 +508,13 @@ class InviterInfo(_PluginBase):
                                                         },
                                                         "content": [
                                                             {"component": "VBtn", "props": {
-                                                                "text": True,
+                                                                "text": true,
                                                                 "size": "small"
                                                             }, "on": {
-                                                                "click": "invokePluginApi('inviterinfo', 'sort_table', {sort_by: 'site_name'}).then(() => { this.$parent.$parent.$forceUpdate() })"
+                                                                "click": "invokePluginApi('inviterinfo', 'sort_table', {{sort_by: 'site_name'}}).then(() => {{ this.$parent.$parent.$forceUpdate() }})"
                                                             }, "text": "站点名称"},
                                                             {"component": "VIcon", "props": {
-                                                                "small": True,
+                                                                "small": true,
                                                                 "color": "primary"
                                                             }, "text": "mdi-sort"}
                                                         ]
@@ -542,13 +526,13 @@ class InviterInfo(_PluginBase):
                                                         },
                                                         "content": [
                                                             {"component": "VBtn", "props": {
-                                                                "text": True,
+                                                                "text": true,
                                                                 "size": "small"
                                                             }, "on": {
-                                                                "click": "invokePluginApi('inviterinfo', 'sort_table', {sort_by: 'inviter_name'}).then(() => { this.$parent.$parent.$forceUpdate() })"
+                                                                "click": "invokePluginApi('inviterinfo', 'sort_table', {{sort_by: 'inviter_name'}}).then(() => {{ this.$parent.$parent.$forceUpdate() }})"
                                                             }, "text": "邀请人"},
                                                             {"component": "VIcon", "props": {
-                                                                "small": True,
+                                                                "small": true,
                                                                 "color": "primary"
                                                             }, "text": "mdi-sort"}
                                                         ]
@@ -560,13 +544,13 @@ class InviterInfo(_PluginBase):
                                                         },
                                                         "content": [
                                                             {"component": "VBtn", "props": {
-                                                                "text": True,
+                                                                "text": true,
                                                                 "size": "small"
                                                             }, "on": {
-                                                                "click": "invokePluginApi('inviterinfo', 'sort_table', {sort_by: 'inviter_id'}).then(() => { this.$parent.$parent.$forceUpdate() })"
+                                                                "click": "invokePluginApi('inviterinfo', 'sort_table', {{sort_by: 'inviter_id'}}).then(() => {{ this.$parent.$parent.$forceUpdate() }})"
                                                             }, "text": "邀请人ID"},
                                                             {"component": "VIcon", "props": {
-                                                                "small": True,
+                                                                "small": true,
                                                                 "color": "primary"
                                                             }, "text": "mdi-sort"}
                                                         ]
@@ -578,13 +562,13 @@ class InviterInfo(_PluginBase):
                                                         },
                                                         "content": [
                                                             {"component": "VBtn", "props": {
-                                                                "text": True,
+                                                                "text": true,
                                                                 "size": "small"
                                                             }, "on": {
-                                                                "click": "invokePluginApi('inviterinfo', 'sort_table', {sort_by: 'inviter_email'}).then(() => { this.$parent.$parent.$forceUpdate() })"
+                                                                "click": "invokePluginApi('inviterinfo', 'sort_table', {{sort_by: 'inviter_email'}}).then(() => {{ this.$parent.$parent.$forceUpdate() }})"
                                                             }, "text": "邮箱"},
                                                             {"component": "VIcon", "props": {
-                                                                "small": True,
+                                                                "small": true,
                                                                 "color": "primary"
                                                             }, "text": "mdi-sort"}
                                                         ]
@@ -596,13 +580,13 @@ class InviterInfo(_PluginBase):
                                                         },
                                                         "content": [
                                                             {"component": "VBtn", "props": {
-                                                                "text": True,
+                                                                "text": true,
                                                                 "size": "small"
                                                             }, "on": {
-                                                                "click": "invokePluginApi('inviterinfo', 'sort_table', {sort_by: 'get_time'}).then(() => { this.$parent.$parent.$forceUpdate() })"
+                                                                "click": "invokePluginApi('inviterinfo', 'sort_table', {{sort_by: 'get_time'}}).then(() => {{ this.$parent.$parent.$forceUpdate() }})"
                                                             }, "text": "获取时间"},
                                                             {"component": "VIcon", "props": {
-                                                                "small": True,
+                                                                "small": true,
                                                                 "color": "primary"
                                                             }, "text": "mdi-sort"}
                                                         ]
@@ -647,7 +631,7 @@ class InviterInfo(_PluginBase):
                                 "component": "VTable",
                                 "props": {
                                     "density": "compact",
-                                    "hover": True,
+                                    "hover": true,
                                     "class": "mt-4"
                                 },
                                 "content": [
@@ -772,12 +756,11 @@ class InviterInfo(_PluginBase):
         skip_count = 0
         error_count = 0
         
-        # 检查是否有选择站点
+        # 如果未选择任何站点，将处理所有站点（默认全选）
         if not self._selected_sites:
-            log_msg = f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 未选择任何站点，直接返回\n"
+            log_msg = f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 未选择任何站点，将处理所有站点\n"
             logger.info(log_msg.strip())
             self._log_content += log_msg
-            return site_data
         
         for site in sites:
             # 检查是否收到中止信号
@@ -833,10 +816,10 @@ class InviterInfo(_PluginBase):
                 logger.info(log_msg.strip())
                 self._log_content += log_msg
                 
-                # 检查站点是否在用户选择的站点列表中
-                if str(site.id) not in self._selected_sites:
+                # 检查站点是否在用户选择的站点列表中（如果_selected_sites为空，则处理所有站点）
+                if self._selected_sites and str(site.id) not in self._selected_sites:
                     logger.info(f"站点 {site.name} 不在用户选择的站点列表中，保持原有数据")
-                    log_msg = f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 站点 {site.name} 不在用户选择列表中，跳过\n"
+                    log_msg = f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 站点 {site.name} 不在选择列表中，跳过\n"
                     logger.info(log_msg.strip())
                     self._log_content += log_msg
                     continue

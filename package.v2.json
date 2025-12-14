@@ -3,7 +3,7 @@
     "name": "PT站邀请人统计",
     "description": "统计所有PT站的上家信息，包括邀请人信息和邮箱（如果隐私设置允许）。",
     "labels": "PT站,统计",
-    "version": "1.14",
+    "version": "1.15",
     "icon": "user.png",
     "author": "MoviePilot",
     "level": 2,
