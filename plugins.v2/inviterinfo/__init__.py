@@ -32,7 +32,7 @@ class InviterInfo(_PluginBase):
     # 插件图标
     plugin_icon = "user.png"
     # 插件版本
-    plugin_version = "1.9"
+    plugin_version = "1.12"
     # 插件作者
     plugin_author = "MoviePilot"
     # 作者主页
@@ -341,7 +341,7 @@ class InviterInfo(_PluginBase):
                                             "class": "mt-2"
                                         },
                                         "on": {
-                                            "click": "() => { $refs.selectSite.internalValue = $refs.selectSite.items.map(item => item.value); }"
+                                            "click": "() => { $refs.selectSite.modelValue = $refs.selectSite.items.map(item => item.value); }"
                                         }
                                     }
                                 ]
@@ -352,14 +352,15 @@ class InviterInfo(_PluginBase):
             }
         ]
         
+        # 返回当前配置而不是默认配置，避免覆盖已保存的设置
         return config_form, {
-            "inviterinfo_enabled": False,
-            "inviterinfo_onlyonce": False,
-            "inviterinfo_aborttask": False,
-            "inviterinfo_force_refresh": False,
-            "inviterinfo_notify": False,
-            "inviterinfo_cron": "",
-            "inviterinfo_selected_sites": []
+            "inviterinfo_enabled": self._enabled,
+            "inviterinfo_onlyonce": self._onlyonce,
+            "inviterinfo_aborttask": self._abort_flag,
+            "inviterinfo_force_refresh": self._force_refresh,
+            "inviterinfo_notify": self._notify,
+            "inviterinfo_cron": self._cron,
+            "inviterinfo_selected_sites": self._selected_sites
         }
 
     def get_page(self) -> List[dict]:
@@ -507,8 +508,9 @@ class InviterInfo(_PluginBase):
                                                         "content": [
                                                             {"component": "VBtn", "props": {
                                                                 "text": True,
-                                                                "size": "small",
-                                                                "click": "invokePluginApi('inviterinfo', 'sort_table', {sort_by: 'site_name'})"
+                                                                "size": "small"
+                                                            }, "on": {
+                                                                "click": "invokePluginApi('inviterinfo', 'sort_table', {sort_by: 'site_name'}).then(() => { this.$parent.$parent.$forceUpdate() })"
                                                             }, "text": "站点名称"},
                                                             {"component": "VIcon", "props": {
                                                                 "small": True,
@@ -524,8 +526,9 @@ class InviterInfo(_PluginBase):
                                                         "content": [
                                                             {"component": "VBtn", "props": {
                                                                 "text": True,
-                                                                "size": "small",
-                                                                "click": "invokePluginApi('inviterinfo', 'sort_table', {sort_by: 'inviter_name'})"
+                                                                "size": "small"
+                                                            }, "on": {
+                                                                "click": "invokePluginApi('inviterinfo', 'sort_table', {sort_by: 'inviter_name'}).then(() => { this.$parent.$parent.$forceUpdate() })"
                                                             }, "text": "邀请人"},
                                                             {"component": "VIcon", "props": {
                                                                 "small": True,
@@ -541,8 +544,9 @@ class InviterInfo(_PluginBase):
                                                         "content": [
                                                             {"component": "VBtn", "props": {
                                                                 "text": True,
-                                                                "size": "small",
-                                                                "click": "invokePluginApi('inviterinfo', 'sort_table', {sort_by: 'inviter_id'})"
+                                                                "size": "small"
+                                                            }, "on": {
+                                                                "click": "invokePluginApi('inviterinfo', 'sort_table', {sort_by: 'inviter_id'}).then(() => { this.$parent.$parent.$forceUpdate() })"
                                                             }, "text": "邀请人ID"},
                                                             {"component": "VIcon", "props": {
                                                                 "small": True,
@@ -558,8 +562,9 @@ class InviterInfo(_PluginBase):
                                                         "content": [
                                                             {"component": "VBtn", "props": {
                                                                 "text": True,
-                                                                "size": "small",
-                                                                "click": "invokePluginApi('inviterinfo', 'sort_table', {sort_by: 'inviter_email'})"
+                                                                "size": "small"
+                                                            }, "on": {
+                                                                "click": "invokePluginApi('inviterinfo', 'sort_table', {sort_by: 'inviter_email'}).then(() => { this.$parent.$parent.$forceUpdate() })"
                                                             }, "text": "邮箱"},
                                                             {"component": "VIcon", "props": {
                                                                 "small": True,
@@ -575,8 +580,9 @@ class InviterInfo(_PluginBase):
                                                         "content": [
                                                             {"component": "VBtn", "props": {
                                                                 "text": True,
-                                                                "size": "small",
-                                                                "click": "invokePluginApi('inviterinfo', 'sort_table', {sort_by: 'get_time'})"
+                                                                "size": "small"
+                                                            }, "on": {
+                                                                "click": "invokePluginApi('inviterinfo', 'sort_table', {sort_by: 'get_time'}).then(() => { this.$parent.$parent.$forceUpdate() })"
                                                             }, "text": "获取时间"},
                                                             {"component": "VIcon", "props": {
                                                                 "small": True,
@@ -749,6 +755,13 @@ class InviterInfo(_PluginBase):
         skip_count = 0
         error_count = 0
         
+        # 检查是否有选择站点
+        if not self._selected_sites:
+            log_msg = f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 未选择任何站点，直接返回\n"
+            logger.info(log_msg.strip())
+            self._log_content += log_msg
+            return site_data
+        
         for site in sites:
             # 检查是否收到中止信号
             with lock:
@@ -758,6 +771,15 @@ class InviterInfo(_PluginBase):
                 log_msg = f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] === 任务已中止 ===\n"
                 logger.info(log_msg.strip())
                 self._log_content += log_msg
+                # 发送中止通知（如果启用）
+                if self._notify:
+                    title = "【PT站邀请人统计】任务已中止"
+                    text = "PT站邀请人信息收集任务已被用户中止"
+                    self.post_message(
+                        mtype=NotificationType.SiteMessage,
+                        title=title,
+                        text=text
+                    )
                 # 重置中止标志
                 with lock:
                     self._abort_flag = False
@@ -770,7 +792,7 @@ class InviterInfo(_PluginBase):
                 self._log_content += log_msg
                 
                 # 检查站点是否在用户选择的站点列表中
-                if self._selected_sites and str(site.id) not in self._selected_sites:
+                if str(site.id) not in self._selected_sites:
                     logger.info(f"站点 {site.name} 不在用户选择的站点列表中，保持原有数据")
                     log_msg = f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 站点 {site.name} 不在用户选择列表中，跳过\n"
                     logger.info(log_msg.strip())
@@ -831,6 +853,15 @@ class InviterInfo(_PluginBase):
                         log_msg = f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] === 任务已中止 ===\n"
                         logger.info(log_msg.strip())
                         self._log_content += log_msg
+                        # 发送中止通知（如果启用）
+                        if self._notify:
+                            title = "【PT站邀请人统计】任务已中止"
+                            text = "PT站邀请人信息收集任务已被用户中止"
+                            self.post_message(
+                                mtype=NotificationType.SiteMessage,
+                                title=title,
+                                text=text
+                            )
                         # 重置中止标志
                         with lock:
                             self._abort_flag = False
@@ -890,6 +921,18 @@ class InviterInfo(_PluginBase):
                         abort_flag = self._abort_flag
                     if abort_flag:
                         logger.info("中止标志已设置，停止站点信息收集")
+                        log_msg = f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] === 任务已中止 ===\n"
+                        logger.info(log_msg.strip())
+                        self._log_content += log_msg
+                        # 发送中止通知（如果启用）
+                        if self._notify:
+                            title = "【PT站邀请人统计】任务已中止"
+                            text = "PT站邀请人信息收集任务已被用户中止"
+                            self.post_message(
+                                mtype=NotificationType.SiteMessage,
+                                title=title,
+                                text=text
+                            )
                         # 重置中止标志
                         with lock:
                             self._abort_flag = False
