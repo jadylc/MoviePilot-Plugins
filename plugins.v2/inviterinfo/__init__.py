@@ -32,7 +32,7 @@ class InviterInfo(_PluginBase):
     # 插件图标
     plugin_icon = "user.png"
     # 插件版本
-    plugin_version = "1.12"
+    plugin_version = "1.14"
     # 插件作者
     plugin_author = "MoviePilot"
     # 作者主页
@@ -66,8 +66,8 @@ class InviterInfo(_PluginBase):
         # 配置
         if config:
             logger.info(f"获取到插件配置: {config}")
-            self._enabled = config.get("inviterinfo_enabled")
-            self._onlyonce = config.get("inviterinfo_onlyonce")
+            self._enabled = config.get("inviterinfo_enabled", False)
+            self._onlyonce = config.get("inviterinfo_onlyonce", False)
             self._selected_sites = config.get("inviterinfo_selected_sites", [])
             self._force_refresh = config.get("inviterinfo_force_refresh", False)
             self._notify = config.get("inviterinfo_notify", False)
@@ -94,7 +94,14 @@ class InviterInfo(_PluginBase):
                 # 重置onlyonce标志
                 self._onlyonce = False
                 # 更新配置到数据库
-                self.update_config({"inviterinfo_onlyonce": False})
+                self.update_config({
+                    "inviterinfo_onlyonce": False,
+                    "inviterinfo_enabled": self._enabled,
+                    "inviterinfo_selected_sites": self._selected_sites,
+                    "inviterinfo_force_refresh": self._force_refresh,
+                    "inviterinfo_notify": self._notify,
+                    "inviterinfo_cron": self._cron
+                })
         
         # 加载站点处理器
         logger.info("开始加载站点处理器")
@@ -102,6 +109,17 @@ class InviterInfo(_PluginBase):
         
         # 配置定时任务
         self.__schedule_job()
+        
+        # 保存所有配置项到数据库
+        self.update_config({
+            "inviterinfo_enabled": self._enabled,
+            "inviterinfo_onlyonce": self._onlyonce,
+            "inviterinfo_aborttask": self._abort_flag,
+            "inviterinfo_selected_sites": self._selected_sites,
+            "inviterinfo_force_refresh": self._force_refresh,
+            "inviterinfo_notify": self._notify,
+            "inviterinfo_cron": self._cron
+        })
         
         logger.info("PT站邀请人统计插件初始化完成")
 
@@ -332,8 +350,7 @@ class InviterInfo(_PluginBase):
                                     "cols": 2
                                 },
                                 "content": [
-                                    {
-                                        "component": "VBtn",
+                                    {"component": "VBtn",
                                         "props": {
                                             "label": "全选",
                                             "variant": "outlined",
@@ -341,7 +358,7 @@ class InviterInfo(_PluginBase):
                                             "class": "mt-2"
                                         },
                                         "on": {
-                                            "click": "() => { $refs.selectSite.modelValue = $refs.selectSite.items.map(item => item.value); }"
+                                            "click": "() => { $refs.selectSite.modelValue = site_options.map(item => item.value); }"
                                         }
                                     }
                                 ]
@@ -491,7 +508,7 @@ class InviterInfo(_PluginBase):
                                 "component": "VTable",
                                 "props": {
                                     "density": "compact",
-                                    "hover": True
+                                    "hover": true
                                 },
                                 "content": [
                                     {
@@ -773,8 +790,33 @@ class InviterInfo(_PluginBase):
                 self._log_content += log_msg
                 # 发送中止通知（如果启用）
                 if self._notify:
+                    # 生成邀请人统计数据
+                    inviter_stats = {}
+                    for site_name, inviter_info in site_data.items():
+                        inviter_name = inviter_info.get("inviter_name", "-")
+                        if inviter_name not in inviter_stats:
+                            inviter_stats[inviter_name] = 0
+                        inviter_stats[inviter_name] += 1
+                    
+                    # 转换为表格数据并排序
+                    stats_rows = []
+                    for inviter_name, count in inviter_stats.items():
+                        stats_rows.append({
+                            "inviter_name": inviter_name,
+                            "site_count": count
+                        })
+                    stats_rows.sort(key=lambda x: x["site_count"], reverse=True)
+                    
+                    # 格式化统计数据为表格
+                    stats_text = "\n" + "邀请人统计数据:\n"
+                    stats_text += "-" * 25 + "\n"
+                    stats_text += f'{"邀请人":<15} {"站点数量":>8}\n'
+                    stats_text += "-" * 25 + "\n"
+                    for row in stats_rows:
+                        stats_text += f"{row['inviter_name']:<15} {row['site_count']:>8}\n"
+                    
                     title = "【PT站邀请人统计】任务已中止"
-                    text = "PT站邀请人信息收集任务已被用户中止"
+                    text = f"PT站邀请人信息收集任务已被用户中止\n当前已收集 {len(site_data)} 个站点的数据" + stats_text
                     self.post_message(
                         mtype=NotificationType.SiteMessage,
                         title=title,
@@ -986,9 +1028,33 @@ class InviterInfo(_PluginBase):
         if self._notify:
             try:
                 if new_count > 0:
+                    # 生成邀请人统计数据
+                    inviter_stats = {}
+                    for site_name, inviter_info in site_data.items():
+                        inviter_name = inviter_info.get("inviter_name", "-")
+                        if inviter_name not in inviter_stats:
+                            inviter_stats[inviter_name] = 0
+                        inviter_stats[inviter_name] += 1
+                    
+                    # 转换为表格数据并排序
+                    stats_rows = []
+                    for inviter_name, count in inviter_stats.items():
+                        stats_rows.append({
+                            "inviter_name": inviter_name,
+                            "site_count": count
+                        })
+                    stats_rows.sort(key=lambda x: x["site_count"], reverse=True)
+                    
+                    # 格式化统计数据为表格
+                    stats_text = "\n" + "邀请人统计数据:\n"
+                    stats_text += "-" * 25 + "\n"
+                    stats_text += f'{"邀请人":<15} {"站点数量":>8}\n'
+                    stats_text += "-" * 25 + "\n"
+                    for row in stats_rows:
+                        stats_text += f"{row['inviter_name']:<15} {row['site_count']:>8}\n"
+                    
                     title = "【PT站邀请人统计】数据收集完成"
-                    text = f"成功获取 {new_count} 个站点的邀请人信息\n"\
-                           f"当前共收集 {final_count} 个站点的数据"
+                    text = f"成功获取 {new_count} 个站点的邀请人信息\n当前共收集 {final_count} 个站点的数据" + stats_text
                     self.post_message(
                         mtype=NotificationType.SiteMessage,
                         title=title,
