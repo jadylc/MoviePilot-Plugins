@@ -1,6 +1,8 @@
 from typing import Optional, Any, List, Dict, Tuple
 from datetime import datetime
 from threading import Lock
+from apscheduler.schedulers.background import BackgroundScheduler
+from apscheduler.triggers.cron import CronTrigger
 
 from app import schemas
 from app.core.config import settings
@@ -29,7 +31,7 @@ class InviterInfo(_PluginBase):
     # 插件图标
     plugin_icon = "user.png"
     # 插件版本
-    plugin_version = "1.8"
+    plugin_version = "1.9"
     # 插件作者
     plugin_author = "MoviePilot"
     # 作者主页
@@ -46,6 +48,12 @@ class InviterInfo(_PluginBase):
     _onlyonce: bool = False
     _selected_sites: list = []
     _abort_flag: bool = False
+    _force_refresh: bool = False
+    _sort_by: str = "site_name"
+    _sort_direction: str = "asc"
+    _notify: bool = False
+    _cron: Optional[str] = None
+    _scheduler: Optional[BackgroundScheduler] = None
     
     # 站点处理器
     _site_handlers: list = []
@@ -58,6 +66,9 @@ class InviterInfo(_PluginBase):
             self._enabled = config.get("inviterinfo_enabled")
             self._onlyonce = config.get("inviterinfo_onlyonce")
             self._selected_sites = config.get("inviterinfo_selected_sites", [])
+            self._force_refresh = config.get("inviterinfo_force_refresh", False)
+            self._notify = config.get("inviterinfo_notify", False)
+            self._cron = config.get("inviterinfo_cron")
             
             # 处理立即中断任务请求
             aborttask = config.get("inviterinfo_aborttask")
@@ -65,17 +76,24 @@ class InviterInfo(_PluginBase):
                 logger.info("检测到aborttask标志为True，触发任务中断")
                 self.abort_run()
             
-            # 如果onlyonce为True，执行一次数据收集
+            # 如果onlyonce为True，执行一次数据收集（后台运行）
             if self._onlyonce:
-                logger.info("检测到onlyonce标志为True，开始执行一次数据收集")
-                self.__get_all_site_inviter_info()
-                logger.info("数据收集完成")
+                logger.info("检测到onlyonce标志为True，开始在后台执行一次数据收集")
+                # 创建并启动后台线程
+                thread = threading.Thread(target=self.__get_all_site_inviter_info, kwargs={"force_refresh": self._force_refresh})
+                thread.daemon = True
+                thread.start()
+                logger.info("后台数据收集线程已启动")
                 # 重置onlyonce标志
                 self._onlyonce = False
         
         # 加载站点处理器
         logger.info("开始加载站点处理器")
         self._load_site_handlers()
+        
+        # 配置定时任务
+        self.__schedule_job()
+        
         logger.info("PT站邀请人统计插件初始化完成")
 
     def get_state(self) -> bool:
@@ -93,6 +111,13 @@ class InviterInfo(_PluginBase):
                 "summary": "中止邀请人信息收集",
                 "description": "中止正在进行的PT站邀请人信息收集任务",
                 "func": self.abort_run
+            },
+            {
+                "path": "sort_table",
+                "methods": ["POST"],
+                "summary": "表格排序",
+                "description": "根据指定字段对表格数据进行排序",
+                "func": self.sort_table
             }
         ]
     
@@ -147,7 +172,7 @@ class InviterInfo(_PluginBase):
                                 "component": "VCol",
                                 "props": {
                                     "cols": 12,
-                                    "sm": 6
+                                    "sm": 4
                                 },
                                 "content": [
                                     {
@@ -164,7 +189,7 @@ class InviterInfo(_PluginBase):
                                 "component": "VCol",
                                 "props": {
                                     "cols": 12,
-                                    "sm": 6
+                                    "sm": 4
                                 },
                                 "content": [
                                     {
@@ -181,7 +206,24 @@ class InviterInfo(_PluginBase):
                                 "component": "VCol",
                                 "props": {
                                     "cols": 12,
-                                    "sm": 6
+                                    "sm": 4
+                                },
+                                "content": [
+                                    {
+                                        "component": "VSwitch",
+                                        "props": {
+                                            "model": "inviterinfo_force_refresh",
+                                            "label": "覆盖获取数据",
+                                            "color": "primary"
+                                        }
+                                    }
+                                ]
+                            },
+                            {
+                                "component": "VCol",
+                                "props": {
+                                    "cols": 12,
+                                    "sm": 4
                                 },
                                 "content": [
                                     {
@@ -190,6 +232,42 @@ class InviterInfo(_PluginBase):
                                             "model": "inviterinfo_aborttask",
                                             "label": "立即中断任务",
                                             "color": "primary"
+                                        }
+                                    }
+                                ]
+                            },
+                            {
+                                "component": "VCol",
+                                "props": {
+                                    "cols": 12,
+                                    "sm": 4
+                                },
+                                "content": [
+                                    {
+                                        "component": "VSwitch",
+                                        "props": {
+                                            "model": "inviterinfo_notify",
+                                            "label": "启用通知",
+                                            "color": "primary"
+                                        }
+                                    }
+                                ]
+                            },
+                            {
+                                "component": "VCol",
+                                "props": {
+                                    "cols": 12
+                                },
+                                "content": [
+                                    {
+                                        "component": "VTextField",
+                                        "props": {
+                                            "model": "inviterinfo_cron",
+                                            "label": "定时任务",
+                                            "placeholder": "0 0 * * *",
+                                            "variant": "outlined",
+                                            "color": "primary",
+                                            "hint": "定时执行任务的cron表达式，留空则关闭定时任务"
                                         }
                                     }
                                 ]
@@ -202,7 +280,7 @@ class InviterInfo(_PluginBase):
                             {
                                 "component": "VCol",
                                 "props": {
-                                    "cols": 12
+                                    "cols": 10
                                 },
                                 "content": [
                                     {
@@ -217,7 +295,26 @@ class InviterInfo(_PluginBase):
                                             "item_text": "title",
                                             "item_value": "value",
                                             "variant": "outlined",
-                                            "color": "primary"
+                                            "color": "primary",
+                                            "ref": "selectSite"
+                                        }
+                                    }
+                                ]
+                            },
+                            {
+                                "component": "VCol",
+                                "props": {
+                                    "cols": 2
+                                },
+                                "content": [
+                                    {
+                                        "component": "VBtn",
+                                        "props": {
+                                            "label": "全选",
+                                            "variant": "outlined",
+                                            "color": "primary",
+                                            "class": "mt-2",
+                                            "click": "() => { $refs.selectSite.internalValue = site_options.map(item => item.value); }"
                                         }
                                     }
                                 ]
@@ -232,6 +329,9 @@ class InviterInfo(_PluginBase):
             "inviterinfo_enabled": False,
             "inviterinfo_onlyonce": False,
             "inviterinfo_aborttask": False,
+            "inviterinfo_force_refresh": False,
+            "inviterinfo_notify": False,
+            "inviterinfo_cron": "",
             "inviterinfo_selected_sites": []
         }
 
@@ -245,16 +345,7 @@ class InviterInfo(_PluginBase):
         logger.info(f"从持久化存储中加载了 {len(site_data)} 条站点数据")
         logger.info("页面加载完成，不自动获取站点邀请人信息")
         
-        # 构建表格组件
-        table_columns = [
-            {"text": "站点名称", "value": "site_name", "width": 150},
-            {"text": "邀请人", "value": "inviter_name", "width": 150},
-            {"text": "邀请人ID", "value": "inviter_id", "width": 100},
-            {"text": "邮箱", "value": "inviter_email", "width": 200},
-            {"text": "获取时间", "value": "get_time", "width": 150}
-        ]
-        logger.info(f"构建表格，包含 {len(table_columns)} 列")
-        
+        # 构建表格数据
         table_rows = []
         for site_name, inviter_info in site_data.items():
             table_row = {
@@ -268,125 +359,260 @@ class InviterInfo(_PluginBase):
             logger.info(f"添加表格行: {table_row}")
         logger.info(f"构建表格，包含 {len(table_rows)} 行数据")
         
+        # 根据当前排序设置对表格数据进行排序
+        table_rows.sort(key=lambda x: x[self._sort_by].lower() if isinstance(x[self._sort_by], str) else x[self._sort_by], reverse=self._sort_direction == "desc")
+        
+        # 表头定义，包含排序字段映射
+        headers = [
+            {"text": "站点名称", "value": "site_name"},
+            {"text": "邀请人", "value": "inviter_name"},
+            {"text": "邀请人ID", "value": "inviter_id"},
+            {"text": "邮箱", "value": "inviter_email"},
+            {"text": "获取时间", "value": "get_time"}
+        ]
+        
+        # 按邀请人统计站点数量
+        inviter_stats = {}
+        for site_name, inviter_info in site_data.items():
+            inviter_name = inviter_info.get("inviter_name", "-")
+            if inviter_name not in inviter_stats:
+                inviter_stats[inviter_name] = 0
+            inviter_stats[inviter_name] += 1
+        
+        # 转换为表格数据
+        stats_rows = []
+        for inviter_name, count in inviter_stats.items():
+            stats_rows.append({
+                "inviter_name": inviter_name,
+                "site_count": count
+            })
+        
+        # 按站点数量排序
+        stats_rows.sort(key=lambda x: x["site_count"], reverse=True)
+        
         return [
-                {
-                    "component": "VCard",
-                    "props": {"class": "mb-4"},
-                    "content": [
-                        {
-                            "component": "VCardTitle",
-                            "content": "PT站邀请人信息统计"
-                        },
-                        {
-                            "component": "VCardActions",
-                            "props": {"class": "px-4 py-2"},
-                            "content": [
-                                {
-                                    "component": "VBtn",
-                                    "props": {
-                                        "color": "error",
-                                        "text": True,
-                                        "click": "invokePluginApi('inviterinfo', 'abort_run')"
+            {
+                "component": "VCard",
+                "props": {"class": "mb-4"},
+                "content": [
+                    {
+                        "component": "VCardTitle",
+                        "content": "PT站邀请人信息统计"
+                    },
+                    {
+                        "component": "VCardActions",
+                        "props": {"class": "px-4 py-2"},
+                        "content": [
+                            {
+                                "component": "VBtn",
+                                "props": {
+                                    "color": "error",
+                                    "text": True,
+                                    "click": "invokePluginApi('inviterinfo', 'abort_run')"
+                                },
+                                "content": "中止运行"
+                            }
+                        ]
+                    },
+                    {
+                        "component": "VCardText",
+                        "content": [
+                            {
+                                "component": "VTable",
+                                "props": {
+                                    "density": "compact",
+                                    "hover": True
+                                },
+                                "content": [
+                                    {
+                                        "component": "thead",
+                                        "content": [
+                                            {
+                                                "component": "tr",
+                                                "content": [
+                                                    {
+                                                        "component": "th",
+                                                        "props": {
+                                                            "class": "sortable"
+                                                        },
+                                                        "content": [
+                                                            {"component": "VBtn", "props": {
+                                                                "text": True,
+                                                                "size": "small",
+                                                                "click": "invokePluginApi('inviterinfo', 'sort_table', {sort_by: 'site_name'})"
+                                                            }, "text": "站点名称"},
+                                                            {"component": "VIcon", "props": {
+                                                                "small": True,
+                                                                "color": "primary"
+                                                            }, "text": "mdi-sort"}
+                                                        ]
+                                                    },
+                                                    {
+                                                        "component": "th",
+                                                        "props": {
+                                                            "class": "sortable"
+                                                        },
+                                                        "content": [
+                                                            {"component": "VBtn", "props": {
+                                                                "text": True,
+                                                                "size": "small",
+                                                                "click": "invokePluginApi('inviterinfo', 'sort_table', {sort_by: 'inviter_name'})"
+                                                            }, "text": "邀请人"},
+                                                            {"component": "VIcon", "props": {
+                                                                "small": True,
+                                                                "color": "primary"
+                                                            }, "text": "mdi-sort"}
+                                                        ]
+                                                    },
+                                                    {
+                                                        "component": "th",
+                                                        "props": {
+                                                            "class": "sortable"
+                                                        },
+                                                        "content": [
+                                                            {"component": "VBtn", "props": {
+                                                                "text": True,
+                                                                "size": "small",
+                                                                "click": "invokePluginApi('inviterinfo', 'sort_table', {sort_by: 'inviter_id'})"
+                                                            }, "text": "邀请人ID"},
+                                                            {"component": "VIcon", "props": {
+                                                                "small": True,
+                                                                "color": "primary"
+                                                            }, "text": "mdi-sort"}
+                                                        ]
+                                                    },
+                                                    {
+                                                        "component": "th",
+                                                        "props": {
+                                                            "class": "sortable"
+                                                        },
+                                                        "content": [
+                                                            {"component": "VBtn", "props": {
+                                                                "text": True,
+                                                                "size": "small",
+                                                                "click": "invokePluginApi('inviterinfo', 'sort_table', {sort_by: 'inviter_email'})"
+                                                            }, "text": "邮箱"},
+                                                            {"component": "VIcon", "props": {
+                                                                "small": True,
+                                                                "color": "primary"
+                                                            }, "text": "mdi-sort"}
+                                                        ]
+                                                    },
+                                                    {
+                                                        "component": "th",
+                                                        "props": {
+                                                            "class": "sortable"
+                                                        },
+                                                        "content": [
+                                                            {"component": "VBtn", "props": {
+                                                                "text": True,
+                                                                "size": "small",
+                                                                "click": "invokePluginApi('inviterinfo', 'sort_table', {sort_by: 'get_time'})"
+                                                            }, "text": "获取时间"},
+                                                            {"component": "VIcon", "props": {
+                                                                "small": True,
+                                                                "color": "primary"
+                                                            }, "text": "mdi-sort"}
+                                                        ]
+                                                    }
+                                                ]
+                                            }
+                                        ]
                                     },
-                                    "content": "中止运行"
-                                }
-                            ]
-                        },
-                        {
-                            "component": "VCardText",
-                            "content": [
-                                {
-                                    "component": "VTable",
-                                    "props": {
-                                        "hover": True,
-                                        "density": "compact",
-                                        "class": "site-invitees-table text-caption"
+                                    {
+                                        "component": "tbody",
+                                        "content": [
+                                            {
+                                                "component": "tr",
+                                                "content": [
+                                                    {
+                                                        "component": "td",
+                                                        "text": row["site_name"]
+                                                    },
+                                                    {
+                                                        "component": "td",
+                                                        "text": row["inviter_name"]
+                                                    },
+                                                    {
+                                                        "component": "td",
+                                                        "text": row["inviter_id"]
+                                                    },
+                                                    {
+                                                        "component": "td",
+                                                        "text": row["inviter_email"]
+                                                    },
+                                                    {
+                                                        "component": "td",
+                                                        "text": row["get_time"]
+                                                    }
+                                                ]
+                                            } for row in table_rows
+                                        ]
+                                    }
+                                ]
+                            },
+                            {
+                                "component": "VTable",
+                                "props": {
+                                    "density": "compact",
+                                    "hover": True,
+                                    "class": "mt-4"
+                                },
+                                "content": [
+                                    {
+                                        "component": "thead",
+                                        "content": [
+                                            {
+                                                "component": "tr",
+                                                "content": [
+                                                    {
+                                                        "component": "th",
+                                                        "text": "邀请人"
+                                                    },
+                                                    {
+                                                        "component": "th",
+                                                        "text": "邀请站点数量"
+                                                    }
+                                                ]
+                                            }
+                                        ]
                                     },
-                                    "content": [
-                                        {
-                                            "component": "thead",
-                                            "content": [
-                                                {
-                                                    "component": "tr",
-                                                    "content": [
-                                                        {
-                                                            "component": "th",
-                                                            "props": {"class": "text-caption", "style": "white-space: nowrap; padding: 4px 8px;"},
-                                                            "text": "站点名称"
-                                                        },
-                                                        {
-                                                            "component": "th",
-                                                            "props": {"class": "text-caption", "style": "white-space: nowrap; padding: 4px 8px;"},
-                                                            "text": "邀请人"
-                                                        },
-                                                        {
-                                                            "component": "th",
-                                                            "props": {"class": "text-caption", "style": "white-space: nowrap; padding: 4px 8px;"},
-                                                            "text": "邀请人ID"
-                                                        },
-                                                        {
-                                                            "component": "th",
-                                                            "props": {"class": "text-caption", "style": "white-space: nowrap; padding: 4px 8px;"},
-                                                            "text": "邮箱"
-                                                        },
-                                                        {
-                                                            "component": "th",
-                                                            "props": {"class": "text-caption", "style": "white-space: nowrap; padding: 4px 8px;"},
-                                                            "text": "获取时间"
-                                                        }
-                                                    ]
-                                                }
-                                            ]
-                                        },
-                                        {
-                                            "component": "tbody",
-                                            "content": [
-                                                {
-                                                    "component": "tr",
-                                                    "content": [
-                                                        {
-                                                            "component": "td",
-                                                            "props": {"style": "white-space: nowrap; padding: 4px 8px;"},
-                                                            "text": row["site_name"]
-                                                        },
-                                                        {
-                                                            "component": "td",
-                                                            "props": {"style": "white-space: nowrap; padding: 4px 8px;"},
-                                                            "text": row["inviter_name"]
-                                                        },
-                                                        {
-                                                            "component": "td",
-                                                            "props": {"style": "white-space: nowrap; padding: 4px 8px;"},
-                                                            "text": row["inviter_id"]
-                                                        },
-                                                        {
-                                                            "component": "td",
-                                                            "props": {"style": "white-space: nowrap; padding: 4px 8px;"},
-                                                            "text": row["inviter_email"]
-                                                        },
-                                                        {
-                                                            "component": "td",
-                                                            "props": {"style": "white-space: nowrap; padding: 4px 8px;"},
-                                                            "text": row["get_time"]
-                                                        }
-                                                    ]
-                                                } for row in table_rows
-                                            ]
-                                        }
-                                    ]
-                                }
-                            ]
-                        }
-                    ]
-                }
-            ]
+                                    {
+                                        "component": "tbody",
+                                        "content": [
+                                            {
+                                                "component": "tr",
+                                                "content": [
+                                                    {
+                                                        "component": "td",
+                                                        "text": row["inviter_name"]
+                                                    },
+                                                    {
+                                                        "component": "td",
+                                                        "text": str(row["site_count"])
+                                                    }
+                                                ]
+                                            } for row in stats_rows
+                                        ]
+                                    }
+                                ]
+                            }
+                        ]
+                    }
+                ]
+            }
+        ]
 
-    def __get_all_site_inviter_info(self) -> Dict[str, Dict[str, Any]]:
+    def __get_all_site_inviter_info(self, force_refresh: bool = False) -> Dict[str, Dict[str, Any]]:
         """
         获取所有站点的邀请人信息
+        :param force_refresh: 是否强制刷新所有数据，即使已存在
         """
-        logger.info("=== 开始获取所有站点的邀请人信息 ===")
-        site_data = {}
+        logger.info("=== 开始获取所有站点的邀请人信息 ====")
+        
+        # 先加载已有的数据，避免清除未勾选站点的历史数据
+        site_data = self.__load_site_data()
+        initial_count = len(site_data)
         
         # 获取所有活跃站点
         try:
@@ -442,7 +668,12 @@ class InviterInfo(_PluginBase):
                 
                 # 检查站点是否在用户选择的站点列表中
                 if self._selected_sites and str(site.id) not in self._selected_sites:
-                    logger.info(f"站点 {site.name} 不在用户选择的站点列表中，跳过")
+                    logger.info(f"站点 {site.name} 不在用户选择的站点列表中，保持原有数据")
+                    continue
+                    
+                # 检查是否已有数据且不需要强制刷新
+                if not force_refresh and site.name in site_data:
+                    logger.info(f"站点 {site.name} 已有邀请人数据，跳过获取")
                     continue
                     
                 # 构建站点信息
@@ -569,7 +800,27 @@ class InviterInfo(_PluginBase):
                 logger.info(f"继续处理下一个站点")
                 continue
         
-        logger.info(f"=== 所有站点处理完成，共获取到 {len(site_data)} 个站点的邀请人信息 ===")
+        # 统计本次获取的站点数量
+        final_count = len(site_data)
+        new_count = final_count - initial_count
+        
+        logger.info(f"=== 所有站点处理完成，共获取到 {final_count} 个站点的邀请人信息 ====")
+        
+        # 发送通知（如果启用）
+        if self._notify:
+            try:
+                if new_count > 0:
+                    title = "【PT站邀请人统计】数据收集完成"
+                    text = f"成功获取 {new_count} 个站点的邀请人信息\n"\
+                           f"当前共收集 {final_count} 个站点的数据"
+                    self.post_message(
+                        mtype=NotificationType.SiteMessage,
+                        title=title,
+                        text=text
+                    )
+            except Exception as e:
+                logger.error(f"发送通知失败: {str(e)}")
+        
         return site_data
     
     def __save_site_data(self, site_data: dict):
@@ -686,9 +937,76 @@ class InviterInfo(_PluginBase):
             logger.info("=== 站点类型判断完成 ===")
             return False
 
+    def sort_table(self, sort_by: str):
+        """
+        根据指定字段对表格数据进行排序
+        :param sort_by: 排序字段
+        """
+        logger.info(f"收到排序请求：{sort_by}")
+        
+        # 如果当前排序字段与请求的排序字段相同，则切换排序方向
+        if self._sort_by == sort_by:
+            self._sort_direction = "desc" if self._sort_direction == "asc" else "asc"
+        else:
+            # 否则，设置新的排序字段，并默认使用升序
+            self._sort_by = sort_by
+            self._sort_direction = "asc"
+        
+        logger.info(f"排序字段：{self._sort_by}，排序方向：{self._sort_direction}")
+        
+        # 重新加载页面数据（通过返回排序后的表格数据，插件系统会自动更新页面）
+        return {
+            "sort_by": self._sort_by,
+            "sort_direction": self._sort_direction
+        }
+
     def get_service(self) -> List[Dict[str, Any]]:
         return []
 
+    def __schedule_job(self):
+        """
+        配置定时任务
+        """
+        try:
+            # 先停止现有调度器
+            if self._scheduler:
+                self._scheduler.shutdown()
+                self._scheduler = None
+                logger.info("已停止现有定时任务调度器")
+            
+            # 如果未启用插件或cron表达式为空，不设置定时任务
+            if not self._enabled or not self._cron:
+                logger.info("插件未启用或cron表达式为空，不设置定时任务")
+                return
+            
+            # 初始化调度器
+            self._scheduler = BackgroundScheduler(timezone=settings.TZ)
+            
+            # 添加定时任务
+            self._scheduler.add_job(
+                func=self.__get_all_site_inviter_info,
+                trigger=CronTrigger.from_crontab(self._cron),
+                id="inviterinfo_task",
+                replace_existing=True
+            )
+            
+            # 启动调度器
+            self._scheduler.start()
+            logger.info(f"定时任务已设置，cron表达式: {self._cron}")
+        except Exception as e:
+            logger.error(f"设置定时任务失败: {str(e)}")
+            logger.exception(e)
+    
     def stop_service(self):
-        pass
+        """
+        停止插件服务
+        """
+        try:
+            if self._scheduler:
+                self._scheduler.shutdown()
+                self._scheduler = None
+                logger.info("定时任务调度器已关闭")
+        except Exception as e:
+            logger.error(f"关闭定时任务调度器失败: {str(e)}")
+            logger.exception(e)
         

@@ -87,7 +87,7 @@ class _IInviterInfoHandler(metaclass=ABCMeta):
         logger.debug("会话初始化完成")
         return self._session
 
-    def get_page_source(self, url: str, site_info: dict, retry: int = 3) -> str:
+    def get_page_source(self, url: str, site_info: dict, retry: int = 2) -> str:
         """
         获取页面源码，支持重试
         :param url: Url地址
@@ -112,6 +112,11 @@ class _IInviterInfoHandler(metaclass=ABCMeta):
                     logger.debug(f"[{site_name}] 响应状态码: {response.status_code}")
                     logger.debug(f"[{site_name}] 响应头: {dict(response.headers)}")
                     
+                    # 对4xx状态码不重试，直接返回
+                    if 400 <= response.status_code < 500:
+                        logger.error(f"[{site_name}] 客户端错误 (状态码: {response.status_code})，不再重试")
+                        return ""
+                        
                     response.raise_for_status()
                     logger.info(f"[{site_name}] 成功获取页面: {url} (尝试 {i+1}/{retry})")
                     logger.info(f"[{site_name}] 页面大小: {len(response.text)} 字节")
@@ -128,6 +133,10 @@ class _IInviterInfoHandler(metaclass=ABCMeta):
                     logger.error(f"[{site_name}] 请求超时 (尝试 {i+1}/{retry}): {type(e).__name__}: {str(e)}")
                     logger.debug(f"[{site_name}] 错误详情: {e}")
                 except requests.exceptions.HTTPError as e:
+                    # 检查状态码，如果是4xx，不重试
+                    if hasattr(e.response, 'status_code') and 400 <= e.response.status_code < 500:
+                        logger.error(f"[{site_name}] HTTP错误 (状态码: {e.response.status_code})，不再重试")
+                        return ""
                     logger.error(f"[{site_name}] HTTP错误 (尝试 {i+1}/{retry}): {type(e).__name__}: {str(e)}")
                     logger.debug(f"[{site_name}] 错误详情: {e}")
                 except requests.exceptions.RequestException as e:
