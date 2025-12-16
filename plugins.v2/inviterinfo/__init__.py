@@ -32,7 +32,7 @@ class InviterInfo(_PluginBase):
     # 插件图标
     plugin_icon = "user.png"
     # 插件版本
-    plugin_version = "1.24"
+    plugin_version = "1.25"
     # 插件作者
     plugin_author = "MoviePilot"
     # 作者主页
@@ -748,8 +748,8 @@ class InviterInfo(_PluginBase):
                     self._log_content += log_msg
                     matched_handler = self.__build_class(site.url)
                     if matched_handler:
-                        logger.info(f"成功获取站点处理器实例: {matched_handler.__class__.__name__}")
-                        log_msg = f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 成功获取站点处理器: {matched_handler.__class__.__name__}\n"
+                        logger.info(f"成功获取站点处理器实例: {matched_handler.__name__}")
+                        log_msg = f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 成功获取站点处理器: {matched_handler.__name__}\n"
                         logger.info(log_msg.strip())
                         self._log_content += log_msg
                 except Exception as ex:
@@ -763,7 +763,7 @@ class InviterInfo(_PluginBase):
                 inviter_info = None
                 if matched_handler:
                     try:
-                        logger.info(f"使用处理器 {matched_handler.__class__.__name__} 获取邀请人信息")
+                        logger.info(f"使用处理器 {matched_handler.__name__} 获取邀请人信息")
                         inviter_info = matched_handler.get_inviter_info(site_info)
                         logger.info(f"成功获取站点 {site.name} 的邀请人信息")
                         logger.debug(f"邀请人信息内容: {inviter_info}")
@@ -917,6 +917,7 @@ class InviterInfo(_PluginBase):
     def __build_class(self, site_url) -> Any:
         for site_handler in self._site_handlers:
             try:
+                logger.info(f"看看site_Url到底是啥：{site_url}")
                 if site_handler.match(site_url):
                     return site_handler
             except Exception as e:
