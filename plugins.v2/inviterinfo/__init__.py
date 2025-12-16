@@ -30,13 +30,13 @@ class InviterInfo(_PluginBase):
     # 插件描述
     plugin_desc = "统计所有PT站的上家信息，包括邀请人信息和邮箱（如果隐私设置允许）"
     # 插件图标
-    plugin_icon = "user.png"
+    plugin_icon = "Casaos_A.png"
     # 插件版本
-    plugin_version = "1.40"
+    plugin_version = "1.0.0"
     # 插件作者
-    plugin_author = "MoviePilot"
+    plugin_author = "Jadylc"
     # 作者主页
-    author_url = ""
+    author_url = "https://github.com/jadylc"
     # 插件配置项ID前缀
     plugin_config_prefix = "inviterinfo_"
     # 加载顺序
