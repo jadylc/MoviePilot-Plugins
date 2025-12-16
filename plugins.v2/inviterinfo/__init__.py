@@ -32,7 +32,7 @@ class InviterInfo(_PluginBase):
     # 插件图标
     plugin_icon = "user.png"
     # 插件版本
-    plugin_version = "1.38"
+    plugin_version = "1.39"
     # 插件作者
     plugin_author = "MoviePilot"
     # 作者主页
@@ -42,7 +42,7 @@ class InviterInfo(_PluginBase):
     # 加载顺序
     plugin_order = 1
     # 可使用的用户级别
-    auth_level = 1
+    auth_level = 2
 
     # 配置属性
     _enabled: bool = False
@@ -654,7 +654,7 @@ class InviterInfo(_PluginBase):
             }
         ]
 
-    def __get_all_site_inviter_info(self, force_refresh: bool = False) -> Dict[str, Dict[str, Any]]:
+    def __get_all_site_inviter_info(self) -> Dict[str, Dict[str, Any]]:
         """
         获取所有站点的邀请人信息
         :param force_refresh: 是否强制刷新所有数据，即使已存在
@@ -725,11 +725,6 @@ class InviterInfo(_PluginBase):
         logger.info(log_msg.strip())
         self._log_content += log_msg
         
-        processed_count = 0
-        success_count = 0
-        skip_count = 0
-        error_count = 0
-        
         # 如果未选择任何站点，将处理所有站点（默认全选）
         if not self._selected_sites:
             log_msg = f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 未选择任何站点，将处理所有站点\n"
@@ -752,7 +747,7 @@ class InviterInfo(_PluginBase):
                     continue
                     
                 # 检查是否已有数据且不需要强制刷新
-                if not force_refresh and site.name in site_data:
+                if not self._force_refresh and site.name in site_data:
                     logger.info(f"站点 {site.name} 已有邀请人数据，跳过获取")
                     log_msg = f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 站点 {site.name} 已有数据，跳过获取\n"
                     logger.info(log_msg.strip())
@@ -859,27 +854,18 @@ class InviterInfo(_PluginBase):
                     })
                 stats_rows.sort(key=lambda x: x["site_count"], reverse=True)
 
-                # 格式化统计数据为HTML表格
-                stats_text = "\n<strong>邀请人统计数据:</strong><br><br>"
-                stats_text += '<table style="border-collapse: collapse; width: 100%; max-width: 500px; margin: 10px 0; font-family: Arial, sans-serif;">'
-                stats_text += '<thead><tr style="background-color: #f5f5f5;">'
-                stats_text += '<th style="border: 1px solid #ddd; padding: 12px; text-align: left; font-weight: bold;">邀请人</th>'
-                stats_text += '<th style="border: 1px solid #ddd; padding: 12px; text-align: center; font-weight: bold;">站点数量</th>'
-                stats_text += '</tr></thead><tbody>'
-                
-                for i, row in enumerate(stats_rows):
-                    bg_color = "#f9f9f9" if i % 2 == 0 else "#ffffff"
-                    stats_text += f'<tr style="background-color: {bg_color};">'
-                    stats_text += f'<td style="border: 1px solid #ddd; padding: 10px;">{row["inviter_name"]}</td>'
-                    stats_text += f'<td style="border: 1px solid #ddd; padding: 10px; text-align: center; font-weight: bold; color: #2196F3;">{row["site_count"]}</td>'
-                    stats_text += '</tr>'
-                
-                stats_text += '</tbody></table>'
+                # 格式化统计数据为表格
+                stats_text = "\n" + "邀请人统计数据:\n"
+                stats_text += "-" * 25 + "\n"
+                stats_text += f'{"邀请人":<15} {"站点数量":>8}\n'
+                stats_text += "-" * 25 + "\n"
+                for row in stats_rows:
+                    stats_text += f"{row['inviter_name']:<15} {row['site_count']:>8}\n"
 
                 title = "【PT站邀请人统计】数据收集完成"
                 text = f"当前共收集 {final_count} 个站点的数据" + stats_text
                 self.post_message(
-                    mtype=NotificationType.SiteMessage,
+                    mtype=NotificationType.Plugin,
                     title=title,
                     text=text
                 )
