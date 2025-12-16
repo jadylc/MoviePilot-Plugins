@@ -32,7 +32,7 @@ class InviterInfo(_PluginBase):
     # 插件图标
     plugin_icon = "user.png"
     # 插件版本
-    plugin_version = "1.33"
+    plugin_version = "1.35"
     # 插件作者
     plugin_author = "MoviePilot"
     # 作者主页
@@ -125,7 +125,7 @@ class InviterInfo(_PluginBase):
         return [
             {
                 "path": "/sort_table",
-                "methods": ["POST"],
+                "methods": ["GET"],
                 "summary": "表格排序",
                 "description": "根据指定字段对表格数据进行排序",
                 "endpoint": self.sort_table
@@ -140,7 +140,7 @@ class InviterInfo(_PluginBase):
         ]
 
     
-    def get_log(self):
+    def get_log(self, apikey : str):
         """
         获取执行日志
         """
@@ -454,9 +454,10 @@ class InviterInfo(_PluginBase):
                                                             }, "events": {
                                                                 "click": {
                                                                     "api": "plugin/InviterInfo/sort_table",
-                                                                    "method": "post",
+                                                                    "method": "get",
                                                                     "params": {
-                                                                        "sort_by": "site_name"
+                                                                        "sort_by": "site_name",
+                                                                        'apikey': settings.API_TOKEN
                                                                     }
                                                                 }
                                                             }, "text": "站点名称"},
@@ -478,9 +479,10 @@ class InviterInfo(_PluginBase):
                                                             }, "events": {
                                                                 "click": {
                                                                     "api": "plugin/InviterInfo/sort_table",
-                                                                    "method": "post",
+                                                                    "method": "get",
                                                                     "params": {
-                                                                        "sort_by": "inviter_name"
+                                                                        "sort_by": "inviter_name",
+                                                                        'apikey': settings.API_TOKEN
                                                                     }
                                                                 }
                                                             }, "text": "邀请人"},
@@ -502,9 +504,10 @@ class InviterInfo(_PluginBase):
                                                             }, "events": {
                                                                 "click": {
                                                                     "api": "plugin/InviterInfo/sort_table",
-                                                                    "method": "post",
+                                                                    "method": "get",
                                                                     "params": {
-                                                                        "sort_by": "inviter_id"
+                                                                        "sort_by": "inviter_id",
+                                                                        'apikey': settings.API_TOKEN
                                                                     }
                                                                 }
                                                             }, "text": "邀请人ID"},
@@ -526,9 +529,10 @@ class InviterInfo(_PluginBase):
                                                             }, "events": {
                                                                 "click": {
                                                                     "api": "plugin/InviterInfo/sort_table",
-                                                                    "method": "post",
+                                                                    "method": "get",
                                                                     "params": {
-                                                                        "sort_by": "inviter_email"
+                                                                        "sort_by": "inviter_email",
+                                                                        'apikey': settings.API_TOKEN
                                                                     }
                                                                 }
                                                             }, "text": "邮箱"},
@@ -550,9 +554,10 @@ class InviterInfo(_PluginBase):
                                                             }, "events": {
                                                                 "click": {
                                                                     "api": "plugin/InviterInfo/sort_table",
-                                                                    "method": "post",
+                                                                    "method": "get",
                                                                     "params": {
-                                                                        "sort_by": "get_time"
+                                                                        "sort_by": "get_time",
+                                                                        'apikey': settings.API_TOKEN
                                                                     }
                                                                 }
                                                             }, "text": "获取时间"},
@@ -879,7 +884,7 @@ class InviterInfo(_PluginBase):
 
 
 
-    def sort_table(self, sort_by: str):
+    def sort_table(self, sort_by: str, apikey : str):
         """
         根据指定字段对表格数据进行排序
         :param sort_by: 排序字段
