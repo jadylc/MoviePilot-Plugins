@@ -32,7 +32,7 @@ class InviterInfo(_PluginBase):
     # 插件图标
     plugin_icon = "user.png"
     # 插件版本
-    plugin_version = "1.15"
+    plugin_version = "1.16"
     # 插件作者
     plugin_author = "MoviePilot"
     # 作者主页
@@ -48,7 +48,6 @@ class InviterInfo(_PluginBase):
     _enabled: bool = False
     _onlyonce: bool = False
     _selected_sites: list = []
-    _abort_flag: bool = False
     _force_refresh: bool = False
     _sort_by: str = "site_name"
     _sort_direction: str = "asc"
@@ -74,16 +73,7 @@ class InviterInfo(_PluginBase):
             self._cron = config.get("inviterinfo_cron")
             
             # 处理立即中断任务请求
-            aborttask = config.get("inviterinfo_aborttask")
-            if aborttask:
-                logger.info("检测到aborttask标志为True，触发任务中断")
-                self.abort_run()
-                # 重置aborttask标志
-                self._abort_flag = False
-                # 更新配置到数据库
-                self.update_config({"inviterinfo_aborttask": False})
-            
-            # 如果onlyonce为True，执行一次数据收集（后台运行）
+
             if self._onlyonce:
                 logger.info("检测到onlyonce标志为True，开始在后台执行一次数据收集")
                 # 创建并启动后台线程
@@ -114,7 +104,6 @@ class InviterInfo(_PluginBase):
         self.update_config({
             "inviterinfo_enabled": self._enabled,
             "inviterinfo_onlyonce": self._onlyonce,
-            "inviterinfo_aborttask": self._abort_flag,
             "inviterinfo_selected_sites": self._selected_sites,
             "inviterinfo_force_refresh": self._force_refresh,
             "inviterinfo_notify": self._notify,
@@ -133,13 +122,6 @@ class InviterInfo(_PluginBase):
     def get_api(self) -> List[Dict[str, Any]]:
         return [
             {
-                "path": "abort_run",
-                "methods": ["GET"],
-                "summary": "中止邀请人信息收集",
-                "description": "中止正在进行的PT站邀请人信息收集任务",
-                "func": self.abort_run
-            },
-            {
                 "path": "sort_table",
                 "methods": ["POST"],
                 "summary": "表格排序",
@@ -154,14 +136,7 @@ class InviterInfo(_PluginBase):
                 "func": self.get_log
             }
         ]
-    
-    def abort_run(self):
-        """
-        设置中止标志，终止正在进行的邀请人信息收集
-        """
-        with lock:
-            self._abort_flag = True
-        logger.info("收到中止信号，将终止邀请人信息收集")
+
     
     def get_log(self):
         """
@@ -272,23 +247,6 @@ class InviterInfo(_PluginBase):
                                     {
                                         "component": "VSwitch",
                                         "props": {
-                                            "model": "inviterinfo_aborttask",
-                                            "label": "立即中断任务",
-                                            "color": "primary"
-                                        }
-                                    }
-                                ]
-                            },
-                            {
-                                "component": "VCol",
-                                "props": {
-                                    "cols": 12,
-                                    "sm": 4
-                                },
-                                "content": [
-                                    {
-                                        "component": "VSwitch",
-                                        "props": {
                                             "model": "inviterinfo_notify",
                                             "label": "启用通知",
                                             "color": "primary"
@@ -355,7 +313,6 @@ class InviterInfo(_PluginBase):
         return config_form, {
             "inviterinfo_enabled": self._enabled,
             "inviterinfo_onlyonce": self._onlyonce,
-            "inviterinfo_aborttask": self._abort_flag,
             "inviterinfo_force_refresh": self._force_refresh,
             "inviterinfo_notify": self._notify,
             "inviterinfo_cron": self._cron,
@@ -430,23 +387,6 @@ class InviterInfo(_PluginBase):
                         "content": "PT站邀请人信息统计"
                     },
                     {
-                        "component": "VCardActions",
-                        "props": {"class": "px-4 py-2"},
-                        "content": [
-                            {
-                                "component": "VBtn",
-                                "props": {
-                                    "color": "error",
-                                    "text": true
-                                },
-                                "on": {
-                                    "click": "invokePluginApi('inviterinfo', 'abort_run')"
-                                },
-                                "content": "中止运行"
-                            }
-                        ]
-                    },
-                    {
                         "component": "VCardText",
                         "content": [
                             {
@@ -492,7 +432,7 @@ class InviterInfo(_PluginBase):
                                 "component": "VTable",
                                 "props": {
                                     "density": "compact",
-                                    "hover": true
+                                    "hover": True
                                 },
                                 "content": [
                                     {
@@ -508,13 +448,13 @@ class InviterInfo(_PluginBase):
                                                         },
                                                         "content": [
                                                             {"component": "VBtn", "props": {
-                                                                "text": true,
+                                                                "text": True,
                                                                 "size": "small"
                                                             }, "on": {
                                                                 "click": "invokePluginApi('inviterinfo', 'sort_table', {{sort_by: 'site_name'}}).then(() => {{ this.$parent.$parent.$forceUpdate() }})"
                                                             }, "text": "站点名称"},
                                                             {"component": "VIcon", "props": {
-                                                                "small": true,
+                                                                "small": True,
                                                                 "color": "primary"
                                                             }, "text": "mdi-sort"}
                                                         ]
@@ -526,13 +466,13 @@ class InviterInfo(_PluginBase):
                                                         },
                                                         "content": [
                                                             {"component": "VBtn", "props": {
-                                                                "text": true,
+                                                                "text": True,
                                                                 "size": "small"
                                                             }, "on": {
                                                                 "click": "invokePluginApi('inviterinfo', 'sort_table', {{sort_by: 'inviter_name'}}).then(() => {{ this.$parent.$parent.$forceUpdate() }})"
                                                             }, "text": "邀请人"},
                                                             {"component": "VIcon", "props": {
-                                                                "small": true,
+                                                                "small": True,
                                                                 "color": "primary"
                                                             }, "text": "mdi-sort"}
                                                         ]
@@ -544,13 +484,13 @@ class InviterInfo(_PluginBase):
                                                         },
                                                         "content": [
                                                             {"component": "VBtn", "props": {
-                                                                "text": true,
+                                                                "text": True,
                                                                 "size": "small"
                                                             }, "on": {
                                                                 "click": "invokePluginApi('inviterinfo', 'sort_table', {{sort_by: 'inviter_id'}}).then(() => {{ this.$parent.$parent.$forceUpdate() }})"
                                                             }, "text": "邀请人ID"},
                                                             {"component": "VIcon", "props": {
-                                                                "small": true,
+                                                                "small": True,
                                                                 "color": "primary"
                                                             }, "text": "mdi-sort"}
                                                         ]
@@ -562,13 +502,13 @@ class InviterInfo(_PluginBase):
                                                         },
                                                         "content": [
                                                             {"component": "VBtn", "props": {
-                                                                "text": true,
+                                                                "text": True,
                                                                 "size": "small"
                                                             }, "on": {
                                                                 "click": "invokePluginApi('inviterinfo', 'sort_table', {{sort_by: 'inviter_email'}}).then(() => {{ this.$parent.$parent.$forceUpdate() }})"
                                                             }, "text": "邮箱"},
                                                             {"component": "VIcon", "props": {
-                                                                "small": true,
+                                                                "small": True,
                                                                 "color": "primary"
                                                             }, "text": "mdi-sort"}
                                                         ]
@@ -580,13 +520,13 @@ class InviterInfo(_PluginBase):
                                                         },
                                                         "content": [
                                                             {"component": "VBtn", "props": {
-                                                                "text": true,
+                                                                "text": True,
                                                                 "size": "small"
                                                             }, "on": {
                                                                 "click": "invokePluginApi('inviterinfo', 'sort_table', {{sort_by: 'get_time'}}).then(() => {{ this.$parent.$parent.$forceUpdate() }})"
                                                             }, "text": "获取时间"},
                                                             {"component": "VIcon", "props": {
-                                                                "small": true,
+                                                                "small": True,
                                                                 "color": "primary"
                                                             }, "text": "mdi-sort"}
                                                         ]
@@ -631,7 +571,7 @@ class InviterInfo(_PluginBase):
                                 "component": "VTable",
                                 "props": {
                                     "density": "compact",
-                                    "hover": true,
+                                    "hover": True,
                                     "class": "mt-4"
                                 },
                                 "content": [
@@ -763,53 +703,6 @@ class InviterInfo(_PluginBase):
             self._log_content += log_msg
         
         for site in sites:
-            # 检查是否收到中止信号
-            with lock:
-                abort_flag = self._abort_flag
-            if abort_flag:
-                logger.info("中止标志已设置，停止站点信息收集")
-                log_msg = f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] === 任务已中止 ===\n"
-                logger.info(log_msg.strip())
-                self._log_content += log_msg
-                # 发送中止通知（如果启用）
-                if self._notify:
-                    # 生成邀请人统计数据
-                    inviter_stats = {}
-                    for site_name, inviter_info in site_data.items():
-                        inviter_name = inviter_info.get("inviter_name", "-")
-                        if inviter_name not in inviter_stats:
-                            inviter_stats[inviter_name] = 0
-                        inviter_stats[inviter_name] += 1
-                    
-                    # 转换为表格数据并排序
-                    stats_rows = []
-                    for inviter_name, count in inviter_stats.items():
-                        stats_rows.append({
-                            "inviter_name": inviter_name,
-                            "site_count": count
-                        })
-                    stats_rows.sort(key=lambda x: x["site_count"], reverse=True)
-                    
-                    # 格式化统计数据为表格
-                    stats_text = "\n" + "邀请人统计数据:\n"
-                    stats_text += "-" * 25 + "\n"
-                    stats_text += f'{"邀请人":<15} {"站点数量":>8}\n'
-                    stats_text += "-" * 25 + "\n"
-                    for row in stats_rows:
-                        stats_text += f"{row['inviter_name']:<15} {row['site_count']:>8}\n"
-                    
-                    title = "【PT站邀请人统计】任务已中止"
-                    text = f"PT站邀请人信息收集任务已被用户中止\n当前已收集 {len(site_data)} 个站点的数据" + stats_text
-                    self.post_message(
-                        mtype=NotificationType.SiteMessage,
-                        title=title,
-                        text=text
-                    )
-                # 重置中止标志
-                with lock:
-                    self._abort_flag = False
-                break
-            
             try:
                 logger.info(f"=== 开始处理站点: {site.name} (ID: {site.id}) ===")
                 log_msg = f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 开始处理站点: {site.name}\n"
@@ -870,28 +763,7 @@ class InviterInfo(_PluginBase):
                 
                 # 如果没有找到匹配的处理器，尝试使用NexusPHP通用处理器
                 if not matched_handler:
-                    # 检查是否收到中止信号
-                    with lock:
-                        abort_flag = self._abort_flag
-                    if abort_flag:
-                        logger.info("中止标志已设置，停止站点信息收集")
-                        log_msg = f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] === 任务已中止 ===\n"
-                        logger.info(log_msg.strip())
-                        self._log_content += log_msg
-                        # 发送中止通知（如果启用）
-                        if self._notify:
-                            title = "【PT站邀请人统计】任务已中止"
-                            text = "PT站邀请人信息收集任务已被用户中止"
-                            self.post_message(
-                                mtype=NotificationType.SiteMessage,
-                                title=title,
-                                text=text
-                            )
-                        # 重置中止标志
-                        with lock:
-                            self._abort_flag = False
-                        break
-                    
+
                     logger.info(f"没有找到匹配的站点处理器，尝试检查是否为NexusPHP站点")
                     log_msg = f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 未找到匹配处理器，尝试检查是否为NexusPHP站点...\n"
                     logger.info(log_msg.strip())
@@ -941,28 +813,7 @@ class InviterInfo(_PluginBase):
                 # 获取邀请人信息
                 inviter_info = None
                 if matched_handler:
-                    # 检查是否收到中止信号
-                    with lock:
-                        abort_flag = self._abort_flag
-                    if abort_flag:
-                        logger.info("中止标志已设置，停止站点信息收集")
-                        log_msg = f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] === 任务已中止 ===\n"
-                        logger.info(log_msg.strip())
-                        self._log_content += log_msg
-                        # 发送中止通知（如果启用）
-                        if self._notify:
-                            title = "【PT站邀请人统计】任务已中止"
-                            text = "PT站邀请人信息收集任务已被用户中止"
-                            self.post_message(
-                                mtype=NotificationType.SiteMessage,
-                                title=title,
-                                text=text
-                            )
-                        # 重置中止标志
-                        with lock:
-                            self._abort_flag = False
-                        break
-                    
+
                     try:
                         logger.info(f"使用处理器 {matched_handler.__class__.__name__} 获取邀请人信息")
                         inviter_info = matched_handler.get_inviter_info(site_info)
