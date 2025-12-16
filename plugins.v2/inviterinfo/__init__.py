@@ -32,7 +32,7 @@ class InviterInfo(_PluginBase):
     # 插件图标
     plugin_icon = "user.png"
     # 插件版本
-    plugin_version = "1.30"
+    plugin_version = "1.31"
     # 插件作者
     plugin_author = "MoviePilot"
     # 作者主页
@@ -455,7 +455,10 @@ class InviterInfo(_PluginBase):
                                                                 "click": {
                                                                     "api": "plugin/InviterInfo/sort_table",
                                                                     "method": "post",
-                                                                    "params": {"sort_by": "site_name"}
+                                                                    "params": {
+                                                                        "sort_by": "site_name",
+                                                                        "apikey": settings.API_TOKEN
+                                                                    }
                                                                 }
                                                             }, "text": "站点名称"},
                                                             {"component": "VIcon", "props": {
@@ -477,7 +480,10 @@ class InviterInfo(_PluginBase):
                                                                 "click": {
                                                                     "api": "plugin/InviterInfo/sort_table",
                                                                     "method": "post",
-                                                                    "params": {"sort_by": "inviter_name"}
+                                                                    "params": {
+                                                                        "sort_by": "inviter_name",
+                                                                        "apikey": settings.API_TOKEN
+                                                                    }
                                                                 }
                                                             }, "text": "邀请人"},
                                                             {"component": "VIcon", "props": {
@@ -499,7 +505,10 @@ class InviterInfo(_PluginBase):
                                                                 "click": {
                                                                     "api": "plugin/InviterInfo/sort_table",
                                                                     "method": "post",
-                                                                    "params": {"sort_by": "inviter_id"}
+                                                                    "params": {
+                                                                        "sort_by": "inviter_id",
+                                                                        "apikey": settings.API_TOKEN
+                                                                    }
                                                                 }
                                                             }, "text": "邀请人ID"},
                                                             {"component": "VIcon", "props": {
@@ -521,7 +530,10 @@ class InviterInfo(_PluginBase):
                                                                 "click": {
                                                                     "api": "plugin/InviterInfo/sort_table",
                                                                     "method": "post",
-                                                                    "params": {"sort_by": "inviter_email"}
+                                                                    "params": {
+                                                                        "sort_by": "inviter_email",
+                                                                        "apikey": settings.API_TOKEN
+                                                                    }
                                                                 }
                                                             }, "text": "邮箱"},
                                                             {"component": "VIcon", "props": {
@@ -543,7 +555,10 @@ class InviterInfo(_PluginBase):
                                                                 "click": {
                                                                     "api": "plugin/InviterInfo/sort_table",
                                                                     "method": "post",
-                                                                    "params": {"sort_by": "get_time"}
+                                                                    "params": {
+                                                                        "sort_by": "get_time",
+                                                                        "apikey": settings.API_TOKEN
+                                                                    }
                                                                 }
                                                             }, "text": "获取时间"},
                                                             {"component": "VIcon", "props": {
