@@ -387,10 +387,6 @@ class NexusPHPInviterInfoHandler(_IInviterInfoHandler):
                 logger.info(f"清理后得到邀请人名称: {inviter_name}")
             else:
                 logger.info("邀请人名称无需清理")
-                
-                # 最后检查是否为空或无意义
-                if inviter_name in ["", "无", "None", "未知", "Unknown", "匿名", "Anonymous", "-", "--", "---"]:
-                    inviter_name = ""
 
         logger.info(f"最终提取到的邀请人名称: {inviter_name}")
         
