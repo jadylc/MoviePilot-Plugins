@@ -32,7 +32,7 @@ class InviterInfo(_PluginBase):
     # 插件图标
     plugin_icon = "user.png"
     # 插件版本
-    plugin_version = "1.26"
+    plugin_version = "1.27"
     # 插件作者
     plugin_author = "MoviePilot"
     # 作者主页
@@ -451,8 +451,12 @@ class InviterInfo(_PluginBase):
                                                             {"component": "VBtn", "props": {
                                                                 "text": True,
                                                                 "size": "small"
-                                                            }, "on": {
-                                                                "click": "invokePluginApi('inviterinfo', 'sort_table', {{sort_by: 'site_name'}}).then(() => {{ this.$parent.$parent.$forceUpdate() }})"
+                                                            }, "events": {
+                                                                "click": {
+                                                                    "api": "plugin/inviterinfo/sort_table",
+                                                                    "method": "post",
+                                                                    "params": {"sort_by": "site_name"}
+                                                                }
                                                             }, "text": "站点名称"},
                                                             {"component": "VIcon", "props": {
                                                                 "small": True,
@@ -469,8 +473,12 @@ class InviterInfo(_PluginBase):
                                                             {"component": "VBtn", "props": {
                                                                 "text": True,
                                                                 "size": "small"
-                                                            }, "on": {
-                                                                "click": "invokePluginApi('inviterinfo', 'sort_table', {{sort_by: 'inviter_name'}}).then(() => {{ this.$parent.$parent.$forceUpdate() }})"
+                                                            }, "events": {
+                                                                "click": {
+                                                                    "api": "plugin/inviterinfo/sort_table",
+                                                                    "method": "post",
+                                                                    "params": {"sort_by": "inviter_name"}
+                                                                }
                                                             }, "text": "邀请人"},
                                                             {"component": "VIcon", "props": {
                                                                 "small": True,
@@ -487,8 +495,12 @@ class InviterInfo(_PluginBase):
                                                             {"component": "VBtn", "props": {
                                                                 "text": True,
                                                                 "size": "small"
-                                                            }, "on": {
-                                                                "click": "invokePluginApi('inviterinfo', 'sort_table', {{sort_by: 'inviter_id'}}).then(() => {{ this.$parent.$parent.$forceUpdate() }})"
+                                                            }, "events": {
+                                                                "click": {
+                                                                    "api": "plugin/inviterinfo/sort_table",
+                                                                    "method": "post",
+                                                                    "params": {"sort_by": "inviter_id"}
+                                                                }
                                                             }, "text": "邀请人ID"},
                                                             {"component": "VIcon", "props": {
                                                                 "small": True,
@@ -505,8 +517,12 @@ class InviterInfo(_PluginBase):
                                                             {"component": "VBtn", "props": {
                                                                 "text": True,
                                                                 "size": "small"
-                                                            }, "on": {
-                                                                "click": "invokePluginApi('inviterinfo', 'sort_table', {{sort_by: 'inviter_email'}}).then(() => {{ this.$parent.$parent.$forceUpdate() }})"
+                                                            }, "events": {
+                                                                "click": {
+                                                                    "api": "plugin/inviterinfo/sort_table",
+                                                                    "method": "post",
+                                                                    "params": {"sort_by": "inviter_email"}
+                                                                }
                                                             }, "text": "邮箱"},
                                                             {"component": "VIcon", "props": {
                                                                 "small": True,
@@ -523,8 +539,12 @@ class InviterInfo(_PluginBase):
                                                             {"component": "VBtn", "props": {
                                                                 "text": True,
                                                                 "size": "small"
-                                                            }, "on": {
-                                                                "click": "invokePluginApi('inviterinfo', 'sort_table', {{sort_by: 'get_time'}}).then(() => {{ this.$parent.$parent.$forceUpdate() }})"
+                                                            }, "events": {
+                                                                "click": {
+                                                                    "api": "plugin/inviterinfo/sort_table",
+                                                                    "method": "post",
+                                                                    "params": {"sort_by": "get_time"}
+                                                                }
                                                             }, "text": "获取时间"},
                                                             {"component": "VIcon", "props": {
                                                                 "small": True,
