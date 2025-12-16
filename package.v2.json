@@ -3,11 +3,12 @@
     "name": "PT站邀请人统计",
     "description": "统计所有PT站的上家信息，包括邀请人信息和邮箱（如果隐私设置允许）。",
     "labels": "PT站,统计",
-    "version": "1.36",
+    "version": "1.38",
     "icon": "user.png",
     "author": "MoviePilot",
     "level": 1,
     "history": {
+      "v1.38": "通知消息改为HTML表格格式，更加美观工整",
       "v1.36": "优化优化",
       "v1.28": "try fix",
       "v1.27": "try fix",

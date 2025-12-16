@@ -32,7 +32,7 @@ class InviterInfo(_PluginBase):
     # 插件图标
     plugin_icon = "user.png"
     # 插件版本
-    plugin_version = "1.36"
+    plugin_version = "1.38"
     # 插件作者
     plugin_author = "MoviePilot"
     # 作者主页
@@ -859,13 +859,22 @@ class InviterInfo(_PluginBase):
                     })
                 stats_rows.sort(key=lambda x: x["site_count"], reverse=True)
 
-                # 格式化统计数据为表格
-                stats_text = "\n" + "邀请人统计数据:\n"
-                stats_text += "-" * 25 + "\n"
-                stats_text += f'{"邀请人":<15} {"站点数量":>8}\n'
-                stats_text += "-" * 25 + "\n"
-                for row in stats_rows:
-                    stats_text += f"{row['inviter_name']:<15} {row['site_count']:>8}\n"
+                # 格式化统计数据为HTML表格
+                stats_text = "\n<strong>邀请人统计数据:</strong><br><br>"
+                stats_text += '<table style="border-collapse: collapse; width: 100%; max-width: 500px; margin: 10px 0; font-family: Arial, sans-serif;">'
+                stats_text += '<thead><tr style="background-color: #f5f5f5;">'
+                stats_text += '<th style="border: 1px solid #ddd; padding: 12px; text-align: left; font-weight: bold;">邀请人</th>'
+                stats_text += '<th style="border: 1px solid #ddd; padding: 12px; text-align: center; font-weight: bold;">站点数量</th>'
+                stats_text += '</tr></thead><tbody>'
+                
+                for i, row in enumerate(stats_rows):
+                    bg_color = "#f9f9f9" if i % 2 == 0 else "#ffffff"
+                    stats_text += f'<tr style="background-color: {bg_color};">'
+                    stats_text += f'<td style="border: 1px solid #ddd; padding: 10px;">{row["inviter_name"]}</td>'
+                    stats_text += f'<td style="border: 1px solid #ddd; padding: 10px; text-align: center; font-weight: bold; color: #2196F3;">{row["site_count"]}</td>'
+                    stats_text += '</tr>'
+                
+                stats_text += '</tbody></table>'
 
                 title = "【PT站邀请人统计】数据收集完成"
                 text = f"当前共收集 {final_count} 个站点的数据" + stats_text

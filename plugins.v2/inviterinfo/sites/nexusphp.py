@@ -93,6 +93,7 @@ class NexusPHPInviterInfoHandler(_IInviterInfoHandler):
             # 表格结构（NP核心结构） - 精确匹配
             # "//td[@class='rowhead' and text()='邀请人']/following-sibling::td[1]",
             "//td[@class='rowhead nowrap' and text()='邀请人']/following-sibling::td[1]",
+            "//td[@class='rowhead nowrap' and text()='注册方式']/following-sibling::td[1]",
             # "//td[@class='rowhead' and contains(text(), '邀请人')]/following-sibling::td[1]",
             "//td[text()='邀请人']/following-sibling::td[1]",
             # "//td[contains(text(), '邀请人')]/following-sibling::td[1]",
