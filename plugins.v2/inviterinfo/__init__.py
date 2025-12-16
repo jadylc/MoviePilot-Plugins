@@ -32,7 +32,7 @@ class InviterInfo(_PluginBase):
     # 插件图标
     plugin_icon = "user.png"
     # 插件版本
-    plugin_version = "1.20"
+    plugin_version = "1.21"
     # 插件作者
     plugin_author = "MoviePilot"
     # 作者主页
@@ -326,7 +326,7 @@ class InviterInfo(_PluginBase):
         """
         logger.info("开始生成插件页面")
         # 获取所有站点数据（仅显示已有的数据，不自动收集）
-        site_data = self.__load_site_data()
+        site_data = self.get_data("inviterdata")
         logger.info(f"从持久化存储中加载了 {len(site_data)} 条站点数据")
         logger.info("页面加载完成，不自动获取站点邀请人信息")
         
@@ -633,7 +633,7 @@ class InviterInfo(_PluginBase):
         self._log_content = log_msg
         
         # 先加载已有的数据，避免清除未勾选站点的历史数据
-        site_data = self.__load_site_data()
+        site_data =  self.get_data("inviterdata")
         initial_count = len(site_data)
         
         log_msg = f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 已加载 {initial_count} 个站点的历史数据\n"
@@ -787,7 +787,7 @@ class InviterInfo(_PluginBase):
                         logger.info(f"成功保存站点 {site.name} 的邀请人信息")
                         logger.debug(f"保存的信息: {site_data_entry}")
                         # 保存到持久化存储
-                        self.__save_site_data(site_data)
+                        self.save_data("inviterdata", site_data);
                     except Exception as ex:
                         logger.error(f"保存邀请人信息失败: {str(ex)}")
                         logger.exception(ex)
@@ -846,52 +846,8 @@ class InviterInfo(_PluginBase):
                 logger.error(f"发送通知失败: {str(e)}")
         
         return site_data
-    
-    def __save_site_data(self, site_data: dict):
-        """
-        保存站点数据到JSON文件
-        :param site_data: 站点数据
-        """
-        import json
-        import os
-        try:
-            # 获取插件目录
-            plugin_dir = os.path.dirname(os.path.abspath(__file__))
-            data_file = os.path.join(plugin_dir, "site_data.json")
-            logger.info(f"开始保存站点数据到 {data_file}")
-            
-            with open(data_file, "w", encoding="utf-8") as f:
-                json.dump(site_data, f, ensure_ascii=False, indent=2)
-            logger.info(f"成功保存站点数据到 {data_file}")
-        except Exception as e:
-            logger.error(f"保存站点数据失败: {e}")
-            logger.exception(e)
-    
-    def __load_site_data(self) -> dict:
-        """
-        从JSON文件加载站点数据
-        :return: 站点数据
-        """
-        import json
-        import os
-        try:
-            # 获取插件目录
-            plugin_dir = os.path.dirname(os.path.abspath(__file__))
-            data_file = os.path.join(plugin_dir, "site_data.json")
-            logger.info(f"开始从 {data_file} 加载站点数据")
-            
-            if not os.path.exists(data_file):
-                logger.info(f"数据文件 {data_file} 不存在，返回空数据")
-                return {}
-            
-            with open(data_file, "r", encoding="utf-8") as f:
-                site_data = json.load(f)
-            logger.info(f"成功从 {data_file} 加载站点数据")
-            return site_data
-        except Exception as e:
-            logger.error(f"加载站点数据失败: {e}")
-            logger.exception(e)
-            return {}
+
+
 
     def sort_table(self, sort_by: str):
         """
