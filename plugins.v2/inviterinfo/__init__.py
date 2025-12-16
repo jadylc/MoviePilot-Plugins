@@ -32,7 +32,7 @@ class InviterInfo(_PluginBase):
     # 插件图标
     plugin_icon = "user.png"
     # 插件版本
-    plugin_version = "1.28"
+    plugin_version = "1.29"
     # 插件作者
     plugin_author = "MoviePilot"
     # 作者主页
@@ -453,7 +453,7 @@ class InviterInfo(_PluginBase):
                                                                 "size": "small"
                                                             }, "events": {
                                                                 "click": {
-                                                                    "api": "plugin/inviterinfo/sort_table",
+                                                                    "api": "plugin/InviterInfo/sort_table",
                                                                     "method": "post",
                                                                     "params": {"sort_by": "site_name"}
                                                                 }
@@ -475,7 +475,7 @@ class InviterInfo(_PluginBase):
                                                                 "size": "small"
                                                             }, "events": {
                                                                 "click": {
-                                                                    "api": "plugin/inviterinfo/sort_table",
+                                                                    "api": "plugin/InviterInfo/sort_table",
                                                                     "method": "post",
                                                                     "params": {"sort_by": "inviter_name"}
                                                                 }
@@ -497,7 +497,7 @@ class InviterInfo(_PluginBase):
                                                                 "size": "small"
                                                             }, "events": {
                                                                 "click": {
-                                                                    "api": "plugin/inviterinfo/sort_table",
+                                                                    "api": "plugin/InviterInfo/sort_table",
                                                                     "method": "post",
                                                                     "params": {"sort_by": "inviter_id"}
                                                                 }
@@ -519,7 +519,7 @@ class InviterInfo(_PluginBase):
                                                                 "size": "small"
                                                             }, "events": {
                                                                 "click": {
-                                                                    "api": "plugin/inviterinfo/sort_table",
+                                                                    "api": "plugin/InviterInfo/sort_table",
                                                                     "method": "post",
                                                                     "params": {"sort_by": "inviter_email"}
                                                                 }
@@ -541,7 +541,7 @@ class InviterInfo(_PluginBase):
                                                                 "size": "small"
                                                             }, "events": {
                                                                 "click": {
-                                                                    "api": "plugin/inviterinfo/sort_table",
+                                                                    "api": "plugin/InviterInfo/sort_table",
                                                                     "method": "post",
                                                                     "params": {"sort_by": "get_time"}
                                                                 }
