@@ -65,14 +65,7 @@ class NexusPHPInviterInfoHandler(_IInviterInfoHandler):
             return True
 
         return False
-    
-    def is_nexusphp_site(self, html_content: str) -> bool:
-        """
-        判断一个站点是否为NexusPHP站点
-        :param html_content: 站点页面HTML内容
-        :return: 是否为NexusPHP站点
-        """
-        return True
+
 
     def get_inviter_info(self, site_info: dict) -> Dict[str, Optional[str]]:
         """
@@ -99,12 +92,6 @@ class NexusPHPInviterInfoHandler(_IInviterInfoHandler):
         if user_id:
             user_urls.append(f"{site_url}/userdetails.php?id={user_id}")
             logger.debug(f"使用用户ID构建URL: {user_urls[-1]}")
-        user_urls.extend([
-            f"{site_url}/userdetails.php?id=0",
-            f"{site_url}/my.php",
-            f"{site_url}/profile.php",
-            f"{site_url}/user.php"
-        ])
         
         logger.info(f"构建的用户详情页URL列表: {user_urls}")
         
@@ -128,11 +115,6 @@ class NexusPHPInviterInfoHandler(_IInviterInfoHandler):
             return None
             
         logger.info(f"最终使用URL: {final_user_url} 获取页面内容")
-
-        # 检查是否为NexusPHP站点
-        logger.info("检查是否为NexusPHP站点")
-        is_nexusphp = self.is_nexusphp_site(html_content)
-        logger.info(f"站点{site_info.get('name')}是否为NexusPHP站点: {is_nexusphp}")
 
         from lxml import etree
         html = etree.HTML(html_content)

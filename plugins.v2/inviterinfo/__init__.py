@@ -1,10 +1,10 @@
 from typing import Optional, Any, List, Dict, Tuple
-from datetime import datetime
+from datetime import datetime, timedelta
 import threading
 from threading import Lock
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
-
+import pytz
 from app import schemas
 from app.core.config import settings
 from app.core.event import eventmanager, Event
@@ -32,7 +32,7 @@ class InviterInfo(_PluginBase):
     # 插件图标
     plugin_icon = "user.png"
     # 插件版本
-    plugin_version = "1.18"
+    plugin_version = "1.20"
     # 插件作者
     plugin_author = "MoviePilot"
     # 作者主页
@@ -76,29 +76,31 @@ class InviterInfo(_PluginBase):
 
             if self._onlyonce:
                 logger.info("检测到onlyonce标志为True，开始在后台执行一次数据收集")
-                # 创建并启动后台线程
-                thread = threading.Thread(target=self.__get_all_site_inviter_info, kwargs={"force_refresh": self._force_refresh})
-                thread.daemon = True
-                thread.start()
-                logger.info("后台数据收集线程已启动")
+                # 定时服务
+                self._scheduler = BackgroundScheduler(timezone=settings.TZ)
+                logger.debug("立即运行一次开关已开启，将在3秒后执行刷新")
+                self._scheduler.add_job(func=self.__get_all_site_inviter_info, trigger='date',
+                                        run_date=datetime.now(pytz.timezone(settings.TZ)) + timedelta(seconds=3),
+                                        name="PT站邀请人统计")
                 # 重置onlyonce标志
                 self._onlyonce = False
                 # 更新配置到数据库
                 self.update_config({
-                    "inviterinfo_onlyonce": False,
+                    "inviterinfo_onlyonce": self._onlyonce,
                     "inviterinfo_enabled": self._enabled,
                     "inviterinfo_selected_sites": self._selected_sites,
                     "inviterinfo_force_refresh": self._force_refresh,
                     "inviterinfo_notify": self._notify,
                     "inviterinfo_cron": self._cron
                 })
+                # 启动任务
+                if self._scheduler and self._scheduler.get_jobs():
+                    self._scheduler.print_jobs()
+                    self._scheduler.start()
         
         # 加载站点处理器
         logger.info("开始加载站点处理器")
         self._load_site_handlers()
-        
-        # 配置定时任务
-        self.__schedule_job()
         
         # 保存所有配置项到数据库
         self.update_config({
@@ -151,8 +153,8 @@ class InviterInfo(_PluginBase):
         try:
             logger.info("开始加载sites目录下的站点处理器")
             # 使用自定义ModuleLoader加载站点处理器
-            from app.plugins.inviterinfo.module_loader import ModuleLoader
-            self._site_handlers = ModuleLoader.load_site_handlers()
+            self._site_handlers =  ModuleHelper.load('app.plugins.inviterinfo.sites',
+                                                  filter_func=lambda _, obj: hasattr(obj, 'match'))
             logger.info(f"成功加载 {len(self._site_handlers)} 个站点处理器")
             # 记录每个加载的处理器
             for handler_cls in self._site_handlers:
@@ -167,8 +169,7 @@ class InviterInfo(_PluginBase):
         拼装插件配置页面
         """
         # 获取所有活跃站点
-        sites_helper = SitesHelper()
-        managed_sites = sites_helper.get_indexers()
+        managed_sites = SitesHelper().get_indexers()
         site_options = [
             {"title": site["name"], "value": str(site["id"])}
             for site in managed_sites 
@@ -641,8 +642,7 @@ class InviterInfo(_PluginBase):
         
         # 获取所有活跃站点
         try:
-            sites_helper = SitesHelper()
-            managed_sites = sites_helper.get_indexers()
+            managed_sites = SitesHelper().get_indexers()
             log_msg = f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 成功获取到 {len(managed_sites)} 个活跃站点\n"
             logger.info(log_msg.strip())
             self._log_content += log_msg
@@ -746,9 +746,7 @@ class InviterInfo(_PluginBase):
                     log_msg = f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 查找站点处理器...\n"
                     logger.info(log_msg.strip())
                     self._log_content += log_msg
-                    # 使用ModuleLoader的get_handler_for_site方法查找匹配的处理器
-                    from app.plugins.inviterinfo.module_loader import ModuleLoader
-                    matched_handler = ModuleLoader.get_handler_for_site(site.url, self._site_handlers)
+                    matched_handler = self.__build_class(site.url)
                     if matched_handler:
                         logger.info(f"成功获取站点处理器实例: {matched_handler.__class__.__name__}")
                         log_msg = f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 成功获取站点处理器: {matched_handler.__class__.__name__}\n"
@@ -760,60 +758,10 @@ class InviterInfo(_PluginBase):
                     logger.info(log_msg.strip())
                     self._log_content += log_msg
                     logger.exception(ex)
-                
-                # 如果没有找到匹配的处理器，尝试使用NexusPHP通用处理器
-                if not matched_handler:
 
-                    logger.info(f"没有找到匹配的站点处理器，尝试检查是否为NexusPHP站点")
-                    log_msg = f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 未找到匹配处理器，尝试检查是否为NexusPHP站点...\n"
-                    logger.info(log_msg.strip())
-                    self._log_content += log_msg
-                    try:
-                        from app.plugins.inviterinfo.sites.nexusphp import NexusPHPInviterInfoHandler
-                        # 使用NexusPHPInviterInfoHandler的is_nexusphp_site方法检查
-                        nexusphp_handler = NexusPHPInviterInfoHandler()
-                        # 先获取页面内容，再判断是否为NexusPHP站点
-                        site_url = site.url.rstrip("/")
-                        test_urls = [
-                            f"{site_url}/userdetails.php?id=0",
-                            f"{site_url}/my.php",
-                            f"{site_url}/profile.php",
-                            f"{site_url}/usercp.php",
-                            site_url  # 首页
-                        ]
-                        is_nexusphp = False
-                        page_content = ""
-                        for test_url in test_urls:
-                            page_content = nexusphp_handler.get_page_source(test_url, site_info)
-                            if page_content:
-                                if nexusphp_handler.is_nexusphp_site(page_content):
-                                    is_nexusphp = True
-                                    break
-                        if is_nexusphp:
-                            matched_handler = nexusphp_handler
-                            logger.info(f"站点 {site.name} 使用NexusPHP通用处理器")
-                            log_msg = f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 站点 {site.name} 是NexusPHP站点，使用通用处理器\n"
-                            logger.info(log_msg.strip())
-                            self._log_content += log_msg
-                        else:
-                            logger.info(f"站点 {site.name} 不是NexusPHP站点，无法处理")
-                            log_msg = f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 站点 {site.name} 不是NexusPHP站点，暂不支持\n"
-                            logger.info(log_msg.strip())
-                            self._log_content += log_msg
-                            # 记录页面预览用于调试
-                            if page_content:
-                                logger.debug(f"页面预览: {page_content[:500]}...")
-                    except Exception as ex:
-                        logger.error(f"检查站点类型失败: {str(ex)}")
-                        log_msg = f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 检查站点类型失败: {str(ex)}\n"
-                        logger.info(log_msg.strip())
-                        self._log_content += log_msg
-                        logger.exception(ex)
-                
                 # 获取邀请人信息
                 inviter_info = None
                 if matched_handler:
-
                     try:
                         logger.info(f"使用处理器 {matched_handler.__class__.__name__} 获取邀请人信息")
                         inviter_info = matched_handler.get_inviter_info(site_info)
@@ -969,52 +917,53 @@ class InviterInfo(_PluginBase):
         }
 
     def get_service(self) -> List[Dict[str, Any]]:
+        # 配置定时任务
+        if self._enabled and self._cron:
+            try:
+                # 检查是否为5位cron表达式
+                if str(self._cron).strip().count(" ") == 4:
+                    return [{
+                        "id": "inviterinfo",
+                        "name": "PT站邀请人统计",
+                        "trigger": CronTrigger.from_crontab(self._cron),
+                        "func": self.__get_all_site_inviter_info,
+                        "kwargs": {}
+                    }]
+                else:
+                    logger.error("cron表达式格式错误")
+                    return []
+            except Exception as err:
+                logger.error(f"定时任务配置错误：{str(err)}")
+                return []
         return []
+        # 初始化调度器
+        self._scheduler = BackgroundScheduler(timezone=settings.TZ)
 
-    def __schedule_job(self):
-        """
-        配置定时任务
-        """
-        try:
-            # 先停止现有调度器
-            if self._scheduler:
-                self._scheduler.shutdown()
-                self._scheduler = None
-                logger.info("已停止现有定时任务调度器")
-            
-            # 如果未启用插件或cron表达式为空，不设置定时任务
-            if not self._enabled or not self._cron:
-                logger.info("插件未启用或cron表达式为空，不设置定时任务")
-                return
-            
-            # 初始化调度器
-            self._scheduler = BackgroundScheduler(timezone=settings.TZ)
-            
-            # 添加定时任务
-            self._scheduler.add_job(
-                func=self.__get_all_site_inviter_info,
-                trigger=CronTrigger.from_crontab(self._cron),
-                id="inviterinfo_task",
-                replace_existing=True
-            )
-            
-            # 启动调度器
-            self._scheduler.start()
-            logger.info(f"定时任务已设置，cron表达式: {self._cron}")
-        except Exception as e:
-            logger.error(f"设置定时任务失败: {str(e)}")
-            logger.exception(e)
-    
+
+
+
     def stop_service(self):
         """
         停止插件服务
         """
         try:
-            if self._scheduler:
-                self._scheduler.shutdown()
+            if hasattr(self, "_scheduler") and self._scheduler:
+                self._scheduler.remove_all_jobs()
+                if self._scheduler.running:
+                    self._scheduler.shutdown()
                 self._scheduler = None
                 logger.info("定时任务调度器已关闭")
         except Exception as e:
             logger.error(f"关闭定时任务调度器失败: {str(e)}")
             logger.exception(e)
+
+
+    def __build_class(self, site_url) -> Any:
+        for site_handler in self._site_handlers:
+            try:
+                if site_handler.match(site_url):
+                    return site_handler
+            except Exception as e:
+                logger.error("站点模块加载失败：%s" % str(e))
+        return None
         
