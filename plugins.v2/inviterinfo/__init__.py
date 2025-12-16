@@ -42,7 +42,7 @@ class InviterInfo(_PluginBase):
     # 加载顺序
     plugin_order = 1
     # 可使用的用户级别
-    auth_level = 2
+    auth_level = 1
 
     # 配置属性
     _enabled: bool = False
@@ -126,7 +126,6 @@ class InviterInfo(_PluginBase):
             {
                 "path": "/sort_table",
                 "methods": ["POST"],
-                "auth": "bear",
                 "summary": "表格排序",
                 "description": "根据指定字段对表格数据进行排序",
                 "endpoint": self.sort_table
@@ -135,7 +134,6 @@ class InviterInfo(_PluginBase):
                 "path": "/get_log",
                 "methods": ["GET"],
                 "summary": "获取执行日志",
-                "auth": "bear",
                 "description": "获取当前执行任务的日志内容",
                 "endpoint": self.get_log
             }
