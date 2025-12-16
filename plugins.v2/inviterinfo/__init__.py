@@ -32,7 +32,7 @@ class InviterInfo(_PluginBase):
     # 插件图标
     plugin_icon = "user.png"
     # 插件版本
-    plugin_version = "1.35"
+    plugin_version = "1.36"
     # 插件作者
     plugin_author = "MoviePilot"
     # 作者主页
@@ -328,7 +328,6 @@ class InviterInfo(_PluginBase):
         # 获取所有站点数据（仅显示已有的数据，不自动收集）
         site_data = self.get_data("inviterdata") or {}
         logger.info(f"从持久化存储中加载了 {len(site_data)} 条站点数据")
-        logger.info("页面加载完成，不自动获取站点邀请人信息")
         
         # 获取当前日志信息
         log_content = getattr(self, '_log_content', '')
@@ -837,46 +836,44 @@ class InviterInfo(_PluginBase):
         
         # 统计本次获取的站点数量
         final_count = len(site_data)
-        new_count = final_count - initial_count
-        
+
         logger.info(f"=== 所有站点处理完成，共获取到 {final_count} 个站点的邀请人信息 ====")
         
         # 发送通知（如果启用）
         if self._notify:
             try:
-                if new_count > 0:
-                    # 生成邀请人统计数据
-                    inviter_stats = {}
-                    for site_name, inviter_info in site_data.items():
-                        inviter_name = inviter_info.get("inviter_name", "-")
-                        if inviter_name not in inviter_stats:
-                            inviter_stats[inviter_name] = 0
-                        inviter_stats[inviter_name] += 1
-                    
-                    # 转换为表格数据并排序
-                    stats_rows = []
-                    for inviter_name, count in inviter_stats.items():
-                        stats_rows.append({
-                            "inviter_name": inviter_name,
-                            "site_count": count
-                        })
-                    stats_rows.sort(key=lambda x: x["site_count"], reverse=True)
-                    
-                    # 格式化统计数据为表格
-                    stats_text = "\n" + "邀请人统计数据:\n"
-                    stats_text += "-" * 25 + "\n"
-                    stats_text += f'{"邀请人":<15} {"站点数量":>8}\n'
-                    stats_text += "-" * 25 + "\n"
-                    for row in stats_rows:
-                        stats_text += f"{row['inviter_name']:<15} {row['site_count']:>8}\n"
-                    
-                    title = "【PT站邀请人统计】数据收集完成"
-                    text = f"成功获取 {new_count} 个站点的邀请人信息\n当前共收集 {final_count} 个站点的数据" + stats_text
-                    self.post_message(
-                        mtype=NotificationType.SiteMessage,
-                        title=title,
-                        text=text
-                    )
+                # 生成邀请人统计数据
+                inviter_stats = {}
+                for site_name, inviter_info in site_data.items():
+                    inviter_name = inviter_info.get("inviter_name", "-")
+                    if inviter_name not in inviter_stats:
+                        inviter_stats[inviter_name] = 0
+                    inviter_stats[inviter_name] += 1
+
+                # 转换为表格数据并排序
+                stats_rows = []
+                for inviter_name, count in inviter_stats.items():
+                    stats_rows.append({
+                        "inviter_name": inviter_name,
+                        "site_count": count
+                    })
+                stats_rows.sort(key=lambda x: x["site_count"], reverse=True)
+
+                # 格式化统计数据为表格
+                stats_text = "\n" + "邀请人统计数据:\n"
+                stats_text += "-" * 25 + "\n"
+                stats_text += f'{"邀请人":<15} {"站点数量":>8}\n'
+                stats_text += "-" * 25 + "\n"
+                for row in stats_rows:
+                    stats_text += f"{row['inviter_name']:<15} {row['site_count']:>8}\n"
+
+                title = "【PT站邀请人统计】数据收集完成"
+                text = f"当前共收集 {final_count} 个站点的数据" + stats_text
+                self.post_message(
+                    mtype=NotificationType.SiteMessage,
+                    title=title,
+                    text=text
+                )
             except Exception as e:
                 logger.error(f"发送通知失败: {str(e)}")
         

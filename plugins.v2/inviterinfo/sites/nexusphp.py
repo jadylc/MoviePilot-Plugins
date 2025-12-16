@@ -1,11 +1,12 @@
 # -*- coding: utf-8 -*-
 from typing import Dict, Optional
-
+from urllib.parse import urljoin
 from app.log import logger
-from app.utils.http import RequestUtils
+import requests
 from app.core.config import settings
-
+from app.utils.http import RequestUtils
 from . import _IInviterInfoHandler
+import re
 
 
 class NexusPHPInviterInfoHandler(_IInviterInfoHandler):
@@ -309,8 +310,7 @@ class NexusPHPInviterInfoHandler(_IInviterInfoHandler):
                             # 筛选掉无意义的节点
                             meaningful_nodes = [
                                 node for node in non_label_nodes 
-                                if node not in ["无", "None", "未知", "Unknown", "匿名", "Anonymous", "-", "--", "---", "N/A", "na", "NA", "none", "unknown"]
-                                and len(node.strip()) > 0
+                                if len(node.strip()) > 0
                                 and not all(c in ":：,.;，。；\"\'\[\]()（）【】-_ ".split() for c in node.strip())
                             ]
                             logger.debug(f"筛选后得到 {len(meaningful_nodes)} 个有意义的节点")
@@ -548,3 +548,89 @@ class NexusPHPInviterInfoHandler(_IInviterInfoHandler):
         
         logger.info(f"最终获取到的邮箱信息: {email_text}")
         return email_text
+
+    def _get_user_id(self, site_info: dict) -> Optional[str]:
+        """
+        获取用户ID
+        :param site_info: 站点信息
+        :return: 用户ID
+        """
+        try:
+            import time
+            start_time = time.time()
+
+            site_url = site_info.get("url", "")
+            if not site_url:
+                logger.error("获取用户ID失败: 站点URL为空")
+                return None
+
+            # 只尝试最常用的几个页面，避免过多请求
+            user_pages = [
+                "userdetails.php"  # 用户详情页
+            ]
+
+            user_id = None
+            visited_urls = set()  # 避免重复请求
+            total_timeout = 20  # 总超时时间缩短为20秒
+
+            for page in user_pages:
+                # 检查总超时
+                if time.time() - start_time > total_timeout:
+                    logger.debug(f"获取用户ID总超时 (>{total_timeout}秒)")
+                    break
+                try:
+                    logger.debug(f"尝试从 {page} 获取用户ID")
+
+                    # 构建请求URL
+                    session = self._init_session(site_info)
+                    if page:
+                        user_url = urljoin(site_url, page)
+                    else:
+                        user_url = site_url.rstrip("/")
+
+                    # 避免重复请求
+                    if user_url in visited_urls:
+                        logger.debug(f"已访问过 {user_url}，跳过")
+                        continue
+                    visited_urls.add(user_url)
+
+                    # 使用优化的超时设置，参考hdhivesign插件
+                    response = session.get(user_url, timeout=(5, 30))  # 连接超时5秒，读取超时30秒
+                    response.raise_for_status()
+
+                    logger.debug(f"成功访问 {user_url}")
+                    html_content = response.text
+
+                    # 先尝试从HTML中快速提取用户ID（最常用的方法）
+                    from bs4 import BeautifulSoup
+                    soup = BeautifulSoup(html_content, 'html.parser')
+
+                    # 方法1: 从个人信息链接获取（最可靠的方法）
+                    user_link = soup.select_one('a[href*="userdetails.php"]')
+                    if user_link and 'href' in user_link.attrs:
+                        user_id_match = re.search(r'id=(\d+)', user_link['href'])
+                        if user_id_match:
+                            user_id = user_id_match.group(1)
+                            logger.debug(f"从个人信息链接获取到用户ID: {user_id}")
+                            break
+
+                    if user_id:
+                        break
+                except requests.exceptions.Timeout:
+                    logger.debug(f"从 {page} 获取用户ID超时")
+                    # 继续尝试下一个页面
+                    continue
+                except requests.exceptions.HTTPError as e:
+                    logger.debug(f"从 {page} 获取用户ID时HTTP错误: {str(e)}")
+                    # 继续尝试下一个页面
+                    continue
+                except Exception as e:
+                    logger.debug(f"从 {page} 获取用户ID时出错: {str(e)}")
+                    # 继续尝试下一个页面
+                    continue
+
+            logger.debug(f"获取用户ID完成，耗时: {time.time() - start_time:.2f}秒，结果: {user_id}")
+            return user_id
+        except Exception as e:
+            logger.error(f"获取用户ID失败: {str(e)}")
+            return None
