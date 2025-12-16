@@ -32,7 +32,7 @@ class InviterInfo(_PluginBase):
     # 插件图标
     plugin_icon = "user.png"
     # 插件版本
-    plugin_version = "1.27"
+    plugin_version = "1.28"
     # 插件作者
     plugin_author = "MoviePilot"
     # 作者主页
@@ -124,14 +124,14 @@ class InviterInfo(_PluginBase):
     def get_api(self) -> List[Dict[str, Any]]:
         return [
             {
-                "path": "sort_table",
+                "path": "/sort_table",
                 "methods": ["POST"],
                 "summary": "表格排序",
                 "description": "根据指定字段对表格数据进行排序",
                 "func": self.sort_table
             },
             {
-                "path": "get_log",
+                "path": "/get_log",
                 "methods": ["GET"],
                 "summary": "获取执行日志",
                 "description": "获取当前执行任务的日志内容",
