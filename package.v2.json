@@ -3,12 +3,11 @@
     "name": "PT站邀请人统计",
     "description": "统计所有PT站的上家信息，包括邀请人信息和邮箱（如果隐私设置允许）。",
     "labels": "PT站,统计",
-    "version": "1.19",
+    "version": "1.18",
     "icon": "user.png",
     "author": "MoviePilot",
     "level": 2,
     "history": {
-      "v1.19": "整合module_loader.py代码到init.py，优化代码结构",
       "v1.18": "修复表格列定义，使其符合Vuetify标准格式",
       "v1.16": "修复表格列定义，使其符合Vuetify标准格式",
       "v1.14": "修复配置重置问题和全选按钮无效问题",
