@@ -23,49 +23,11 @@ class NexusPHPInviterInfoHandler(_IInviterInfoHandler):
         :param site_url: 站点URL
         :return: 是否匹配
         """
-        # 排除已知的特殊站点
+        # 排除已知的特殊站点，采用黑名单方式进行
         special_sites = ["m-team", "totheglory", "hdchina", "butterfly", "dmhy", "蝶粉"]
         if any(site in site_url.lower() for site in special_sites):
             return False
-
-        # 标准NexusPHP站点的URL特征
-        nexus_features = [
-            "php",                  # 大多数NexusPHP站点URL包含php
-            "nexus",                # 部分站点URL中包含nexus
-            "agsvpt",               # 红豆饭
-
-            "audiences",            # 观众
-            "hdpt",                 # HD盘他
-            "wintersakura",         # 冬樱
-
-            "hdmayi",               # 蚂蚁
-            "u2.dmhy",              # U2
-            "hddolby",              # 杜比
-            "hdarea",               # 高清地带
-            "pt.soulvoice",         # 聆音
-
-            "ptsbao",               # PT书包
-            "hdhome",               # HD家园
-            "hdatmos",              # 阿童木
-            "1ptba",                # 1PT
-            "keepfrds",             # 朋友
-            "moecat",               # 萌猫
-            "springsunday"          # 春天
-        ]
-
-        # 如果URL中包含任何一个NexusPHP特征，则认为是NexusPHP站点
-        site_url_lower = site_url.lower()
-        for feature in nexus_features:
-            if feature in site_url_lower:
-                logger.debug(f"匹配到NexusPHP站点特征: {feature}")
-                return True
-
-        # 如果没有匹配到特征，但URL中包含PHP，也视为可能的NexusPHP站点
-        if "php" in site_url_lower:
-            logger.debug(f"URL中包含PHP，可能是NexusPHP站点: {site_url}")
-            return True
-
-        return False
+        return True
 
 
     def get_inviter_info(self, site_info: dict) -> Dict[str, Optional[str]]:
