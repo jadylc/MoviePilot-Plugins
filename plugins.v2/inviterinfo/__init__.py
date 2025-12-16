@@ -326,7 +326,7 @@ class InviterInfo(_PluginBase):
         """
         logger.info("开始生成插件页面")
         # 获取所有站点数据（仅显示已有的数据，不自动收集）
-        site_data = self.get_data("inviterdata")
+        site_data = self.get_data("inviterdata") or {}
         logger.info(f"从持久化存储中加载了 {len(site_data)} 条站点数据")
         logger.info("页面加载完成，不自动获取站点邀请人信息")
         
@@ -633,7 +633,7 @@ class InviterInfo(_PluginBase):
         self._log_content = log_msg
         
         # 先加载已有的数据，避免清除未勾选站点的历史数据
-        site_data =  self.get_data("inviterdata")
+        site_data =  self.get_data("inviterdata") or {}
         initial_count = len(site_data)
         
         log_msg = f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 已加载 {initial_count} 个站点的历史数据\n"
