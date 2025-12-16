@@ -32,7 +32,7 @@ class InviterInfo(_PluginBase):
     # 插件图标
     plugin_icon = "user.png"
     # 插件版本
-    plugin_version = "1.17"
+    plugin_version = "1.18"
     # 插件作者
     plugin_author = "MoviePilot"
     # 作者主页
@@ -944,74 +944,6 @@ class InviterInfo(_PluginBase):
             logger.error(f"加载站点数据失败: {e}")
             logger.exception(e)
             return {}
-    
-    def __is_nexusphp_site(self, site_info: dict) -> bool:
-        """
-        判断站点是否为NexusPHP站点
-        :param site_info: 站点信息
-        :return: 是否为NexusPHP站点
-        """
-        site_name = site_info.get('name', '未知站点')
-        logger.info(f"=== 开始判断站点 {site_name} 是否为NexusPHP站点 ===")
-        try:
-            site_url = site_info.get("url")
-            if not site_url:
-                logger.error(f"站点 {site_name} 的URL为空，无法判断是否为NexusPHP站点")
-                return False
-                
-            # 创建NexusPHPInviterInfoHandler实例
-            try:
-                from app.plugins.inviterinfo.sites.nexusphp import NexusPHPInviterInfoHandler
-                handler = NexusPHPInviterInfoHandler()
-                logger.info(f"成功创建NexusPHPInviterInfoHandler实例")
-            except Exception as handler_ex:
-                logger.error(f"创建NexusPHPInviterInfoHandler实例失败: {str(handler_ex)}")
-                logger.exception(handler_ex)
-                return False
-            
-            # 尝试访问多个常见页面以提高识别准确率
-            test_urls = [
-                f"{site_url}/userdetails.php?id=0",
-                f"{site_url}/my.php",
-                f"{site_url}/profile.php",
-                site_url.rstrip("/")  # 首页
-            ]
-            
-            logger.info(f"将尝试访问 {len(test_urls)} 个页面以识别站点类型: {test_urls}")
-            
-            for test_url in test_urls:
-                logger.info(f"尝试访问页面: {test_url}")
-                
-                try:
-                    # 使用统一的get_page_source方法获取页面内容
-                    page_content = handler.get_page_source(test_url, site_info)
-                    
-                    if page_content:
-                        logger.info(f"成功获取页面内容，大小: {len(page_content)} 字节")
-                        # 检查页面是否包含NexusPHP特征（使用handler内置的判断方法）
-                        logger.info("开始检查页面是否包含NexusPHP特征")
-                        if handler.is_nexusphp_site(page_content):
-                            logger.info(f"站点 {site_name} 是NexusPHP站点")
-                            logger.info("=== 站点类型判断完成 ===")
-                            return True
-                        logger.info(f"当前页面 {test_url} 不包含足够的NexusPHP特征，尝试下一个URL")
-                    else:
-                        logger.warning(f"获取页面 {test_url} 无响应或内容为空，尝试下一个URL")
-                except Exception as page_ex:
-                    logger.error(f"访问页面 {test_url} 时发生错误: {str(page_ex)}")
-                    logger.exception(page_ex)
-                    logger.info(f"继续尝试下一个URL")
-                    continue
-            
-            # 所有测试URL都未检测到NexusPHP特征
-            logger.info(f"站点 {site_name} 不是NexusPHP站点")
-            logger.info("=== 站点类型判断完成 ===")
-            return False
-        except Exception as e:
-            logger.error(f"判断站点 {site_name} 类型失败: {str(e)}")
-            logger.exception(e)
-            logger.info("=== 站点类型判断完成 ===")
-            return False
 
     def sort_table(self, sort_by: str):
         """

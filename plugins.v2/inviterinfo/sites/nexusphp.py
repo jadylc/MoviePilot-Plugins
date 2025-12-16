@@ -16,14 +16,55 @@ class NexusPHPInviterInfoHandler(_IInviterInfoHandler):
     site_url = ""
     site_name = "NexusPHP"
 
-    def match(self, url: str) -> bool:
+    def match(self, site_url: str) -> bool:
         """
-        根据站点Url判断是否匹配当前站点邀请人信息获取类
-        :param url: 站点Url
+        判断是否匹配NexusPHP站点
+        :param site_url: 站点URL
         :return: 是否匹配
         """
-        # 通用NexusPHP处理器，主插件会直接调用，但我们也可以尝试识别常见的NexusPHP站点特征
-        return "php" in url.lower()
+        # 排除已知的特殊站点
+        special_sites = ["m-team", "totheglory", "hdchina", "butterfly", "dmhy", "蝶粉"]
+        if any(site in site_url.lower() for site in special_sites):
+            return False
+
+        # 标准NexusPHP站点的URL特征
+        nexus_features = [
+            "php",                  # 大多数NexusPHP站点URL包含php
+            "nexus",                # 部分站点URL中包含nexus
+            "agsvpt",               # 红豆饭
+
+            "audiences",            # 观众
+            "hdpt",                 # HD盘他
+            "wintersakura",         # 冬樱
+
+            "hdmayi",               # 蚂蚁
+            "u2.dmhy",              # U2
+            "hddolby",              # 杜比
+            "hdarea",               # 高清地带
+            "pt.soulvoice",         # 聆音
+
+            "ptsbao",               # PT书包
+            "hdhome",               # HD家园
+            "hdatmos",              # 阿童木
+            "1ptba",                # 1PT
+            "keepfrds",             # 朋友
+            "moecat",               # 萌猫
+            "springsunday"          # 春天
+        ]
+
+        # 如果URL中包含任何一个NexusPHP特征，则认为是NexusPHP站点
+        site_url_lower = site_url.lower()
+        for feature in nexus_features:
+            if feature in site_url_lower:
+                logger.debug(f"匹配到NexusPHP站点特征: {feature}")
+                return True
+
+        # 如果没有匹配到特征，但URL中包含PHP，也视为可能的NexusPHP站点
+        if "php" in site_url_lower:
+            logger.debug(f"URL中包含PHP，可能是NexusPHP站点: {site_url}")
+            return True
+
+        return False
     
     def is_nexusphp_site(self, html_content: str) -> bool:
         """
@@ -156,46 +197,20 @@ class NexusPHPInviterInfoHandler(_IInviterInfoHandler):
 
         if not inviter_element:
             logger.info("NexusPHP未找到邀请人信息，返回'无'")
-            # 添加详细调试信息
-            page_preview = html_content[:2000] + "..." if len(html_content) > 2000 else html_content
-            logger.debug(f"页面预览 (前2000字符): {page_preview}")
-            
-            # 保存完整页面内容到文件（仅用于调试）
-            import os
-            import time
-            try:
-                site_name = site_info.get('name', 'unknown')
-                # 获取当前文件所在目录的父目录，即插件根目录
-                current_dir = os.path.dirname(os.path.abspath(__file__))
-                plugin_root = os.path.dirname(current_dir)
-                debug_dir = os.path.join(plugin_root, 'debug')
-                logger.debug(f"尝试创建调试目录: {debug_dir}")
-                if not os.path.exists(debug_dir):
-                    os.makedirs(debug_dir)
-                    logger.debug(f"成功创建调试目录: {debug_dir}")
-                timestamp = time.strftime("%Y%m%d_%H%M%S")
-                debug_file = os.path.join(debug_dir, f"{site_name}_{timestamp}.html")
-                logger.debug(f"尝试保存调试文件到: {debug_file}")
-                with open(debug_file, "w", encoding="utf-8") as f:
-                    f.write(html_content)
-                logger.info(f"页面完整内容已保存到调试文件: {debug_file}")
-            except Exception as e:
-                logger.error(f"保存页面内容到调试文件失败: {e}")
-                import traceback
-                logger.error(f"错误堆栈: {traceback.format_exc()}")
-            
+
             # 查找页面中所有包含邀请人相关关键词的元素
             import re
             inviter_keywords = [
                 # 中文关键词
-                "邀请人", "上家", "上级", "推荐人", "注册来源", "注册方式", "邀请来源", "邀请我的人", "邀请人信息",
-                "邀请人资料", "邀请人ID", "我的邀请人", "注册介绍人", "介绍人", "介绍我的人", "邀请者", "引荐人",
-                "邀请码来源", "注册邀请人", "邀请人姓名", "邀请人账号", "邀请人用户名", "邀请人昵称", "上家信息",
-                "上级信息", "推荐人信息", "推荐人ID", "引荐人信息", "引荐人ID",
+                "邀请人"
+                # , "上家", "上级", "推荐人", "注册来源", "注册方式", "邀请来源", "邀请我的人", "邀请人信息",
+                # "邀请人资料", "邀请人ID", "我的邀请人", "注册介绍人", "介绍人", "介绍我的人", "邀请者", "引荐人",
+                # "邀请码来源", "注册邀请人", "邀请人姓名", "邀请人账号", "邀请人用户名", "邀请人昵称", "上家信息",
+                # "上级信息", "推荐人信息", "推荐人ID", "引荐人信息", "引荐人ID",
                 # 英文关键词
-                "Inviter", "Referrer", "Sponsor", "Invited By", "Invited by", "Who Invited Me", "Registration Source",
-                "Registration Referrer", "Referral Source", "Referral", "Sponsored By", "Sponsored by", "Inviter Info",
-                "Inviter Details", "Inviter ID", "My Inviter", "Referral ID", "Sponsor ID", "Referrer ID"
+                # "Inviter", "Referrer", "Sponsor", "Invited By", "Invited by", "Who Invited Me", "Registration Source",
+                # "Registration Referrer", "Referral Source", "Referral", "Sponsored By", "Sponsored by", "Inviter Info",
+                # "Inviter Details", "Inviter ID", "My Inviter", "Referral ID", "Sponsor ID", "Referrer ID"
             ]
             matches = []
             for keyword in inviter_keywords:
