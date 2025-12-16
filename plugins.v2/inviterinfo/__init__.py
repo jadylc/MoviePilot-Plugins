@@ -32,7 +32,7 @@ class InviterInfo(_PluginBase):
     # 插件图标
     plugin_icon = "user.png"
     # 插件版本
-    plugin_version = "1.31"
+    plugin_version = "1.32"
     # 插件作者
     plugin_author = "MoviePilot"
     # 作者主页
@@ -140,7 +140,7 @@ class InviterInfo(_PluginBase):
         ]
 
     
-    def get_log(self):
+    def get_log(self, apikey: str):
         """
         获取执行日志
         """
@@ -884,7 +884,7 @@ class InviterInfo(_PluginBase):
 
 
 
-    def sort_table(self, sort_by: str):
+    def sort_table(self, sort_by: str, apikey: str):
         """
         根据指定字段对表格数据进行排序
         :param sort_by: 排序字段
