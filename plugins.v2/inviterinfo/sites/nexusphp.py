@@ -16,6 +16,7 @@ class NexusPHPInviterInfoHandler(_IInviterInfoHandler):
     site_url = ""
     site_name = "NexusPHP"
 
+    @classmethod
     def match(self, site_url: str) -> bool:
         """
         判断是否匹配NexusPHP站点

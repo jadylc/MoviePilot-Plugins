@@ -26,7 +26,7 @@ class _IInviterInfoHandler(metaclass=ABCMeta):
         self._session = None  # 延迟初始化会话
         self._initialized = False  # 标记会话是否已初始化
 
-    @abstractmethod
+    @classmethod
     def match(self, url: str) -> bool:
         """
         根据站点Url判断是否匹配当前站点邀请人信息获取类，大部分情况使用默认实现即可
