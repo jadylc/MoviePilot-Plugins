@@ -23,7 +23,7 @@ class NexusPHPInviterInfoHandler(_IInviterInfoHandler):
         :return: 是否匹配
         """
         # 通用NexusPHP处理器，主插件会直接调用，但我们也可以尝试识别常见的NexusPHP站点特征
-        return False
+        return "php" in url.lower()
     
     def is_nexusphp_site(self, html_content: str) -> bool:
         """
@@ -31,59 +31,7 @@ class NexusPHPInviterInfoHandler(_IInviterInfoHandler):
         :param html_content: 站点页面HTML内容
         :return: 是否为NexusPHP站点
         """
-        if not html_content:
-            return False
-            
-        # NexusPHP特征列表，匹配任意一个即可
-        nexusphp_features = [
-            # 常见的NexusPHP CSS类
-            r'class=["\']userdetails["\']',
-            r'class=["\']userinfo["\']',
-            r'class=["\']profile["\']',
-            r'class=["\']rowhead["\']',
-            r'class=["\']torrents["\']',
-            r'class=["\']torrenttable["\']',
-            
-            # 常见的NexusPHP JavaScript变量
-            r'var\s+userid\s*=',
-            r'var\s+username\s*=',
-            r'var\s+passhash\s*=',
-            r'var\s+baseurl\s*=',
-            
-            # 常见的NexusPHP页面元素
-            r'<a[^>]+href=["\']userdetails\.php\?id=',
-            r'<a[^>]+href=["\']torrents\.php',
-            r'<a[^>]+href=["\']upload\.php',
-            r'<a[^>]+href=["\']messages\.php',
-            r'<a[^>]+href=["\']friends\.php',
-            
-            # 常见的NexusPHP文本
-            r'邀请人',
-            r'Inviter',
-            r'上传量',
-            r'下载量',
-            r'做种时间',
-            r'下载时间',
-            r'分享率',
-            r'Share Ratio',
-            r'Uploaded',
-            r'Downloaded',
-            r'Seeding Time',
-            r'Leeching Time',
-            
-            # 其他NexusPHP特征
-            r'powered\s+by\s+nexusphp',
-            r'NexusPHP\s+v\d+\.\d+',
-            r'nexusphp\.com',
-        ]
-        
-        # 尝试匹配任意一个特征
-        import re
-        for feature in nexusphp_features:
-            if re.search(feature, html_content, re.IGNORECASE):
-                return True
-                
-        return False
+        return True
 
     def get_inviter_info(self, site_info: dict) -> Dict[str, Optional[str]]:
         """
@@ -156,29 +104,29 @@ class NexusPHPInviterInfoHandler(_IInviterInfoHandler):
         # 核心NexusPHP表格结构邀请人信息XPath（仅保留NP核心结构规则）
         inviter_xpaths = [
             # 表格结构（NP核心结构） - 精确匹配
-            "//td[@class='rowhead' and text()='邀请人']/following-sibling::td[1]",
+            # "//td[@class='rowhead' and text()='邀请人']/following-sibling::td[1]",
             "//td[@class='rowhead nowrap' and text()='邀请人']/following-sibling::td[1]",
-            "//td[@class='rowhead' and contains(text(), '邀请人')]/following-sibling::td[1]",
+            # "//td[@class='rowhead' and contains(text(), '邀请人')]/following-sibling::td[1]",
             "//td[text()='邀请人']/following-sibling::td[1]",
-            "//td[contains(text(), '邀请人')]/following-sibling::td[1]",
+            # "//td[contains(text(), '邀请人')]/following-sibling::td[1]",
             
             # 英文版本
-            "//td[@class='rowhead' and text()='Inviter']/following-sibling::td[1]",
-            "//td[@class='rowhead' and contains(text(), 'Inviter')]/following-sibling::td[1]",
-            "//td[text()='Inviter']/following-sibling::td[1]",
-            "//td[contains(text(), 'Inviter')]/following-sibling::td[1]",
+            # "//td[@class='rowhead' and text()='Inviter']/following-sibling::td[1]",
+            # "//td[@class='rowhead' and contains(text(), 'Inviter')]/following-sibling::td[1]",
+            # "//td[text()='Inviter']/following-sibling::td[1]",
+            # "//td[contains(text(), 'Inviter')]/following-sibling::td[1]",
             
             # 表格行匹配（当列属性不明确时）
-            "//tr[contains(., '邀请人')]//td[position()>1]",
-            "//tr[contains(., 'Inviter')]//td[position()>1]",
+            # "//tr[contains(., '邀请人')]//td[position()>1]",
+            # "//tr[contains(., 'Inviter')]//td[position()>1]",
             
             # 中文变体（上家、上级、推荐人）
-            "//td[@class='rowhead' and contains(text(), '上家')]/following-sibling::td[1]",
-            "//td[@class='rowhead' and contains(text(), '上级')]/following-sibling::td[1]",
-            "//td[@class='rowhead' and contains(text(), '推荐人')]/following-sibling::td[1]",
-            "//tr[contains(., '上家')]//td[position()>1]",
-            "//tr[contains(., '上级')]//td[position()>1]",
-            "//tr[contains(., '推荐人')]//td[position()>1]",
+            # "//td[@class='rowhead' and contains(text(), '上家')]/following-sibling::td[1]",
+            # "//td[@class='rowhead' and contains(text(), '上级')]/following-sibling::td[1]",
+            # "//td[@class='rowhead' and contains(text(), '推荐人')]/following-sibling::td[1]",
+            # "//tr[contains(., '上家')]//td[position()>1]",
+            # "//tr[contains(., '上级')]//td[position()>1]",
+            # "//tr[contains(., '推荐人')]//td[position()>1]",
         ]
         logger.info(f"使用 {len(inviter_xpaths)} 种XPath尝试提取邀请人信息")
 
@@ -300,19 +248,19 @@ class NexusPHPInviterInfoHandler(_IInviterInfoHandler):
         
         # 定义可能的邀请人标签（更全面的变体）
         inviter_labels = [
-            ("邀请人：", "邀请人:", "邀请人"),
-            ("Inviter：", "Inviter:", "Inviter"),
-            ("上家：", "上家:", "上家"),
-            ("上级：", "上级:", "上级"),
-            ("推荐人：", "推荐人:", "推荐人"),
-            ("Referrer：", "Referrer:", "Referrer"),
-            ("Sponsor：", "Sponsor:", "Sponsor"),
-            ("邀请人信息：", "邀请人信息:", "邀请人信息"),
-            ("邀请人资料：", "邀请人资料:", "邀请人资料"),
-            ("邀请我的人：", "邀请我的人:", "邀请我的人"),
-            ("Inviter Info：", "Inviter Info:", "Inviter Info"),
-            ("Inviter Details：", "Inviter Details:", "Inviter Details"),
-            ("Who Invited Me：", "Who Invited Me:", "Who Invited Me")
+            ("邀请人：", "邀请人:", "邀请人")
+            # ("Inviter：", "Inviter:", "Inviter"),
+            # ("上家：", "上家:", "上家"),
+            # ("上级：", "上级:", "上级"),
+            # ("推荐人：", "推荐人:", "推荐人"),
+            # ("Referrer：", "Referrer:", "Referrer"),
+            # ("Sponsor：", "Sponsor:", "Sponsor"),
+            # ("邀请人信息：", "邀请人信息:", "邀请人信息"),
+            # ("邀请人资料：", "邀请人资料:", "邀请人资料"),
+            # ("邀请我的人：", "邀请我的人:", "邀请我的人"),
+            # ("Inviter Info：", "Inviter Info:", "Inviter Info"),
+            # ("Inviter Details：", "Inviter Details:", "Inviter Details"),
+            # ("Who Invited Me：", "Who Invited Me:", "Who Invited Me")
         ]
         
         # 尝试从链接中获取名称（优先）
@@ -591,23 +539,23 @@ class NexusPHPInviterInfoHandler(_IInviterInfoHandler):
         email_xpaths = [
             # 表格结构（用户提供的HTML结构）- 从链接中提取，精确匹配
             "//td[@class='rowhead nowrap' and text()='邮箱']/following-sibling::td[1]//a/@href",
-            "//td[@class='rowhead' and text()='邮箱']/following-sibling::td[1]//a/@href",
-            "//td[text()='邮箱']/following-sibling::td[1]//a/@href",
-            "//td[@class='rowhead' and contains(text(), '邮箱')]/following-sibling::td[1]//a/@href",
+            # "//td[@class='rowhead' and text()='邮箱']/following-sibling::td[1]//a/@href",
+            # "//td[text()='邮箱']/following-sibling::td[1]//a/@href",
+            # "//td[@class='rowhead' and contains(text(), '邮箱')]/following-sibling::td[1]//a/@href",
             # 表格结构 - 直接提取文本
-            "//td[text()='邮箱']/following-sibling::td[1]/text()",
-            "//td[@class='rowhead' and contains(text(), '邮箱')]/following-sibling::td[1]/text()",
+            # "//td[text()='邮箱']/following-sibling::td[1]/text()",
+            # "//td[@class='rowhead' and contains(text(), '邮箱')]/following-sibling::td[1]/text()",
             # 列表结构 - 从链接中提取
-            "//div[@class='userinfo']//li[contains(text(), '邮箱')]//a/@href",
-            "//div[@class='profile']//li[contains(text(), '邮箱')]//a/@href",
-            "//div[@id='outer']//li[contains(text(), '邮箱')]//a/@href",
-            "//li[contains(text(), '邮箱')]//a/@href",
+            # "//div[@class='userinfo']//li[contains(text(), '邮箱')]//a/@href",
+            # "//div[@class='profile']//li[contains(text(), '邮箱')]//a/@href",
+            # "//div[@id='outer']//li[contains(text(), '邮箱')]//a/@href",
+            #"//li[contains(text(), '邮箱')]//a/@href",
             # 列表结构 - 直接提取文本
-            "//div[@class='userinfo']//li[contains(text(), '邮箱')]/text()",
-            "//div[@class='profile']//li[contains(text(), '邮箱')]/text()",
-            "//div[@id='outer']//li[contains(text(), '邮箱')]/text()",
-            "//li[contains(text(), '邮箱')]/text()",
-            "//*[contains(text(), '邮箱')]/following-sibling::*/text()"
+            # "//div[@class='userinfo']//li[contains(text(), '邮箱')]/text()",
+            # "//div[@class='profile']//li[contains(text(), '邮箱')]/text()",
+            # "//div[@id='outer']//li[contains(text(), '邮箱')]/text()",
+            # "//li[contains(text(), '邮箱')]/text()",
+            # "//*[contains(text(), '邮箱')]/following-sibling::*/text()"
         ]
         logger.info(f"使用 {len(email_xpaths)} 种XPath尝试提取邮箱信息")
 
