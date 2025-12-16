@@ -764,7 +764,7 @@ class InviterInfo(_PluginBase):
                 if matched_handler:
                     try:
                         logger.info(f"使用处理器 {matched_handler.__name__} 获取邀请人信息")
-                        inviter_info = matched_handler.get_inviter_info(site_info)
+                        inviter_info = matched_handler().get_inviter_info(site_info)
                         logger.info(f"成功获取站点 {site.name} 的邀请人信息")
                         logger.debug(f"邀请人信息内容: {inviter_info}")
                     except Exception as ex:
