@@ -196,8 +196,81 @@ class MTeamInviterInfoHandler(_IInviterInfoHandler):
                     logger.info(f"从响应URL中提取到用户ID: {user_id}")
                     return user_id
             
+            # 尝试从Cookie中提取uid
+            cookies = session.cookies
+            uid = cookies.get("uid")
+            if uid:
+                logger.info(f"从Cookie中提取到用户ID: {uid}")
+                return uid
+            
+            # 尝试通过API获取用户ID
+            try:
+                api_domain = self._extract_api_domain(site_url)
+                api_base_url = f"https://api.{api_domain}/api"
+                logger.info(f"尝试通过API获取用户ID，API基础URL: {api_base_url}")
+                
+                # 配置API请求头
+                headers = {
+                    "User-Agent": site_info.get("ua", "Mozilla/5.0"),
+                    "Accept": "application/json, text/plain, */*",
+                    "x-api-key": site_info.get("apikey", "")
+                }
+                
+                # 发送API请求获取用户信息
+                profile_url = f"{api_base_url}/member/profile"
+                api_response = session.post(profile_url, headers=headers, timeout=(10, 30))
+                
+                if api_response.status_code == 200:
+                    api_data = api_response.json()
+                    if api_data.get("code") == "0" and api_data.get("data"):
+                        user_id = api_data["data"].get("id")
+                        if user_id:
+                            logger.info(f"从API中提取到用户ID: {user_id}")
+                            return user_id
+            except Exception as e:
+                logger.warning(f"通过API获取用户ID失败: {str(e)}")
+
             logger.info("未找到用户ID")
             return None
         except Exception as e:
             logger.error(f"获取用户ID失败: {str(e)}")
             return None
+
+
+
+    def _extract_api_domain(self, url: str) -> str:
+        """
+        从URL提取API域名
+        :param url: 站点URL
+        :return: API域名
+        """
+        if not url:
+            return "m-team.cc"
+            
+        # 移除协议前缀和路径
+        domain = url.lower()
+        domain = domain.replace("https://", "").replace("http://", "").split("/")[0]
+        
+        # 直接使用API域名
+        if domain in ["api.m-team.cc", "api.m-team.io"]:
+            # 截取m-team.cc或m-team.io部分
+            return domain.replace("api.", "")
+            
+        # 特殊处理m-team子域名
+        if domain.startswith("www."):
+            domain = domain[4:]
+        elif any(domain.startswith(prefix) for prefix in ["pt.", "kp.", "zp."]):
+            domain = domain[3:]
+            
+        # 如果域名包含m-team，提取主域名
+        if "m-team.io" in domain:
+            logger.info(f"使用m-team.io作为API域名")
+            return "m-team.io"
+        if "m-team.cc" in domain:
+            logger.info(f"使用m-team.cc作为API域名")
+            return "m-team.cc"
+            
+        # 默认返回m-team.cc
+        logger.info(f"无法识别域名 {domain}，使用默认m-team.cc作为API域名")
+        return "m-team.cc"
+
