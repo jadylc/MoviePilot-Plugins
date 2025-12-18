@@ -166,6 +166,9 @@ class MTeamInviterInfoHandler(_IInviterInfoHandler):
         :param site_info: 站点信息
         :return: 用户ID
         """
+        site_name = site_info.get("name", "")
+        api_key = site_info.get("apikey", "")
+        authorization = site_info.get("token", "")  # 使用token字段作为Authorization
         try:
             site_url = site_info.get("url", "")
             if not site_url:
@@ -205,28 +208,39 @@ class MTeamInviterInfoHandler(_IInviterInfoHandler):
             
             # 尝试通过API获取用户ID
             try:
+                # 检查API认证信息
+                if not api_key or not authorization:
+                    logger.error(f"站点 {site_name} API认证信息不完整")
+                    return None
+                # 提取API域名
                 api_domain = self._extract_api_domain(site_url)
                 api_base_url = f"https://api.{api_domain}/api"
-                logger.info(f"尝试通过API获取用户ID，API基础URL: {api_base_url}")
-                
-                # 配置API请求头
+                logger.info(f"站点 {site_name} 使用API基础URL: {api_base_url}")
+
+                # 配置API请求头 (根据最新参考调整，但恢复 Authorization)
                 headers = {
+                    "Content-Type": "application/json",
                     "User-Agent": site_info.get("ua", "Mozilla/5.0"),
                     "Accept": "application/json, text/plain, */*",
-                    "x-api-key": site_info.get("apikey", "")
+                    "Authorization": authorization,  # 恢复 Authorization
+                    "x-api-key": api_key,
+                    # "ts": str(int(time.time())) # 保持移除 ts
                 }
-                
-                # 发送API请求获取用户信息
-                profile_url = f"{api_base_url}/member/profile"
-                api_response = session.post(profile_url, headers=headers, timeout=(10, 30))
-                
-                if api_response.status_code == 200:
-                    api_data = api_response.json()
-                    if api_data.get("code") == "0" and api_data.get("data"):
-                        user_id = api_data["data"].get("id")
-                        if user_id:
-                            logger.info(f"从API中提取到用户ID: {user_id}")
-                            return user_id
+
+                # 重置会话并添加API认证头
+                session.headers.clear()
+                session.headers.update(headers)
+
+                # 步骤1: 获取用户信息
+                user_data = self._get_user_profile(api_base_url, session, site_name)
+                if not user_data:
+                    return None
+
+                # 提取用户ID、永久邀请和临时邀请数量
+                user_id = user_data.get("id")
+                if not user_id:
+                    return None
+                return user_id
             except Exception as e:
                 logger.warning(f"通过API获取用户ID失败: {str(e)}")
 
