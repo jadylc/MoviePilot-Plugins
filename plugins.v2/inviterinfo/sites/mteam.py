@@ -33,19 +33,13 @@ class MTeamInviterInfoHandler(_IInviterInfoHandler):
         """
         logger.info(f"开始获取M-Team站点 {site_info.get('name')} 的邀请人信息")
         logger.debug(f"站点信息详情: {site_info}")
-        
-        site_url = site_info.get("url", "")
-        
-        if not site_url:
-            logger.error("获取M-Team站点信息失败：未提供站点URL")
-            return None
 
         # 构建用户详情页URL
         user_id = self._get_user_id(site_info)
         if user_id:
-            user_url = f"{site_url}/profile/detail/{user_id}"
+            user_url = f"{self.site_url}/profile/detail/{user_id}"
         else:
-            user_url = f"{site_url}/profile"
+            user_url = f"{self.site_url}/profile"
         
         logger.info(f"构建的用户详情页URL: {user_url}")
         
@@ -170,14 +164,9 @@ class MTeamInviterInfoHandler(_IInviterInfoHandler):
         site_name = site_info.get("name", "")
         api_key = site_info.get("apikey", "")
         try:
-            site_url = site_info.get("url", "")
-            if not site_url:
-                logger.error("获取用户ID失败: 站点URL为空")
-                return None
-
             # 尝试从个人页面URL中提取ID
             import re
-            id_match = re.search(r"profile/detail/(\d+)", site_url)
+            id_match = re.search(r"profile/detail/(\d+)", self.site_url)
             if id_match:
                 user_id = id_match.group(1)
                 logger.info(f"从URL中提取到用户ID: {user_id}")
@@ -187,7 +176,7 @@ class MTeamInviterInfoHandler(_IInviterInfoHandler):
             session = self._init_session(site_info)
             
             # 访问个人主页
-            user_url = f"{site_url}/profile"
+            user_url = f"{self.site_url}/profile"
             response = session.get(user_url, timeout=(5, 20))
             response.raise_for_status()
             
@@ -213,7 +202,7 @@ class MTeamInviterInfoHandler(_IInviterInfoHandler):
                     logger.error(f"站点 {site_name} API认证信息不完整")
                     return None
                 # 提取API域名
-                api_domain = self._extract_api_domain(site_url)
+                api_domain = self._extract_api_domain(self.site_url)
                 api_base_url = f"https://api.{api_domain}/api"
                 logger.info(f"站点 {site_name} 使用API基础URL: {api_base_url}")
 
