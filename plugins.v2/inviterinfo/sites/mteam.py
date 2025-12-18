@@ -99,6 +99,7 @@ class MTeamInviterInfoHandler(_IInviterInfoHandler):
         logger.info(f"获取到邀请人元素的完整文本: {full_text}")
         
         # 清理邀请人名称
+        inviter_name = ""
         if full_text:
             import re
             # 移除可能的标签和标点
@@ -107,7 +108,21 @@ class MTeamInviterInfoHandler(_IInviterInfoHandler):
             inviter_name = re.sub(r'&[a-zA-Z0-9]+;', '', inviter_name)
             # 移除多余的空格
             inviter_name = re.sub(r'\s+', ' ', inviter_name).strip()
-            logger.info(f"最终提取到的邀请人名称: {inviter_name}")
+            logger.info(f"从文本中提取到的邀请人名称: {inviter_name}")
+        
+        # 如果文本中未提取到名称，尝试从strong标签中提取
+        if not inviter_name:
+            strong_elements = inviter_element.xpath(".//strong/text()")
+            if strong_elements:
+                inviter_name = strong_elements[0].strip()
+                logger.info(f"从strong标签中提取到的邀请人名称: {inviter_name}")
+        
+        # 如果strong标签中未提取到名称，尝试从span标签中提取
+        if not inviter_name:
+            span_elements = inviter_element.xpath(".//span/text()")
+            if span_elements:
+                inviter_name = span_elements[0].strip()
+                logger.info(f"从span标签中提取到的邀请人名称: {inviter_name}")
         
         # 获取邀请人ID
         inviter_id = ""
@@ -123,6 +138,18 @@ class MTeamInviterInfoHandler(_IInviterInfoHandler):
                 logger.info(f"提取到的邀请人ID: {inviter_id}")
         else:
             logger.info("未找到邀请人相关的链接")
+        
+        # 最终检查邀请人信息
+        if not inviter_name and not inviter_id:
+            logger.info("M-Team未找到邀请人信息，返回'无'")
+            return {
+                "inviter_name": "无",
+                "inviter_id": "",
+                "inviter_email": ""
+            }
+        
+        logger.info(f"最终提取到的邀请人名称: {inviter_name}")
+        logger.info(f"最终提取到的邀请人ID: {inviter_id}")
         
         # M-Team站点可能不公开邮箱信息
         inviter_email = ""
