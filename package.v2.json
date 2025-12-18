@@ -3,11 +3,12 @@
     "name": "PT站邀请人统计",
     "description": "统计所有PT站的上家信息，包括邀请人信息和邮箱（如果隐私设置允许）。",
     "labels": "PT站,统计",
-    "version": "1.0.6",
+    "version": "1.0.7",
     "icon": "Casaos_A.png",
     "author": "Jadylc",
     "level": 2,
     "history": {
+      "v1.0.7": "修复mt用户id获取",
       "v1.0.6": "修复mt用户id获取",
       "v1.0.5": "修复mt用户id获取",
       "v1.0.4": "修复其他PT站邀请人提取问题",

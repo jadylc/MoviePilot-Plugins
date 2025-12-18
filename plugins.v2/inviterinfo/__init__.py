@@ -32,7 +32,7 @@ class InviterInfo(_PluginBase):
     # 插件图标
     plugin_icon = "Casaos_A.png"
     # 插件版本
-    plugin_version = "1.0.6"
+    plugin_version = "1.0.7"
     # 插件作者
     plugin_author = "Jadylc"
     # 作者主页
@@ -697,7 +697,9 @@ class InviterInfo(_PluginBase):
                     'cookie': site_info.get('cookie', ''),
                     'ua': site_info.get('ua', ''),
                     'proxy': site_info.get('proxy', ''),
-                    'timeout': site_info.get('timeout', 20)
+                    'timeout': site_info.get('timeout', 20),
+                    'apikey': site_info.get('apikey', ''),
+                    'token': site_info.get('token', '')
                 })()
                 sites.append(site_obj)
         except Exception as e:
