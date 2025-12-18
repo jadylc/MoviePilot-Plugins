@@ -32,7 +32,7 @@ class InviterInfo(_PluginBase):
     # 插件图标
     plugin_icon = "Casaos_A.png"
     # 插件版本
-    plugin_version = "1.0.5"
+    plugin_version = "1.0.6"
     # 插件作者
     plugin_author = "Jadylc"
     # 作者主页
@@ -762,7 +762,9 @@ class InviterInfo(_PluginBase):
                     "cookie": site.cookie,
                     "ua": site.ua,
                     "proxy": site.proxy,
-                    "timeout": site.timeout or 20
+                    "timeout": site.timeout or 20,
+                    "apikey": site.apikey,
+                    "token": site.token
                 }
                 logger.debug(f"构建的站点信息: {site_info}")
                 
