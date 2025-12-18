@@ -2,6 +2,8 @@
 from typing import Dict, Optional, Any
 from app.log import logger
 import requests
+
+from app.modules.wechat.WXBizMsgCrypt3 import throw_exception
 from . import _IInviterInfoHandler
 
 
@@ -39,7 +41,7 @@ class MTeamInviterInfoHandler(_IInviterInfoHandler):
         if user_id:
             user_url = f"{self.site_url}/profile/detail/{user_id}"
         else:
-            user_url = f"{self.site_url}/profile"
+            throw_exception("未获取到userid")
         
         logger.info(f"构建的用户详情页URL: {user_url}")
         
