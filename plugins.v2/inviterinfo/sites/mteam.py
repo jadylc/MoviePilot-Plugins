@@ -68,12 +68,7 @@ class MTeamInviterInfoHandler(_IInviterInfoHandler):
         # 尝试多种XPath提取邀请人信息
         inviter_xpaths = [
             # 可能的邀请人信息XPath
-            "//div[contains(@class, 'profile-info')]//div[contains(text(), '邀请人')]/following-sibling::div[1]",
-            "//div[contains(@class, 'user-info')]//div[contains(text(), '邀请人')]/following-sibling::div[1]",
-            "//table//td[contains(text(), '邀请人')]/following-sibling::td[1]",
-            "//div[contains(@class, 'inviter')]/text()",
-            "//span[contains(@class, 'inviter-name')]/text()",
-            "//a[contains(@href, 'profile')]/text()"
+            '//div[@class="ant-card-body"]/table[1]/tbody/tr[td[text()="邀請人"]]/td[2]'
         ]
         logger.info(f"使用 {len(inviter_xpaths)} 种XPath尝试提取邀请人信息")
 

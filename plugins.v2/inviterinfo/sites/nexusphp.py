@@ -107,14 +107,6 @@ class NexusPHPInviterInfoHandler(_IInviterInfoHandler):
             # 表格行匹配（当列属性不明确时）
             # "//tr[contains(., '邀请人')]//td[position()>1]",
             # "//tr[contains(., 'Inviter')]//td[position()>1]",
-            
-            # 中文变体（上家、上级、推荐人）
-            # "//td[@class='rowhead' and contains(text(), '上家')]/following-sibling::td[1]",
-            # "//td[@class='rowhead' and contains(text(), '上级')]/following-sibling::td[1]",
-            # "//td[@class='rowhead' and contains(text(), '推荐人')]/following-sibling::td[1]",
-            # "//tr[contains(., '上家')]//td[position()>1]",
-            # "//tr[contains(., '上级')]//td[position()>1]",
-            # "//tr[contains(., '推荐人')]//td[position()>1]",
         ]
         logger.info(f"使用 {len(inviter_xpaths)} 种XPath尝试提取邀请人信息")
 
@@ -173,18 +165,7 @@ class NexusPHPInviterInfoHandler(_IInviterInfoHandler):
             else:
                 logger.debug("页面中未找到任何邀请人相关关键词")
             
-            # 记录页面的基本结构信息
-            logger.debug("页面基本结构信息:")
-            logger.debug(f"  - 页面长度: {len(html_content)} 字符")
-            logger.debug(f"  - 是否包含userdetails.php: {'userdetails.php' in html_content}")
-            logger.debug(f"  - 是否包含userinfo: {'userinfo' in html_content}")
-            logger.debug(f"  - 是否包含profile: {'profile' in html_content}")
-            logger.debug(f"  - 是否包含table标签: {'<table' in html_content}")
-            logger.debug(f"  - 是否包含ul/ol标签: {'<ul' in html_content or '<ol' in html_content}")
-            logger.debug(f"  - 是否包含div标签: {'<div' in html_content}")
-            logger.debug(f"  - 是否包含span标签: {'<span' in html_content}")
-            
-            # 移除了AFUN站点的特殊处理，使用通用的NexusPHP表格结构XPath即可
+            # 使用通用的NexusPHP表格结构XPath即可
 
             logger.info("NexusPHP未找到邀请人信息，返回'无'")
             return {
