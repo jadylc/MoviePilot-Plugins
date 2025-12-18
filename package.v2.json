@@ -8,7 +8,7 @@
     "author": "Jadylc",
     "level": 2,
     "history": {
-
+      "v1.0.3": "修复其他PT站邀请人提取问题",
       "v1.0.2": "修复m-team邀请人提取问题",
       "v1.0.1": "支持mt",
       "v1.0.0": "MoviePilot V2 版本PT站邀请人统计插件"

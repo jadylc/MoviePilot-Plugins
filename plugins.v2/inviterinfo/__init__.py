@@ -944,7 +944,6 @@ class InviterInfo(_PluginBase):
     def __build_class(self, site_url) -> Any:
         for site_handler in self._site_handlers:
             try:
-                logger.info(f"看看site_Url到底是啥：{site_url}")
                 if site_handler.match(site_url):
                     return site_handler
             except Exception as e:
