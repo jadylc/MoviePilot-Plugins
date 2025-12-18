@@ -49,10 +49,6 @@ class MTeamInviterInfoHandler(_IInviterInfoHandler):
         if not html_content:
             logger.error("获取M-Team用户页面失败")
             return None
-            
-        logger.info(f"成功获取页面: {user_url}")
-        logger.debug(f"页面内容大小: {len(html_content)} 字节")
-
         from lxml import etree
         html = etree.HTML(html_content)
         if not html:

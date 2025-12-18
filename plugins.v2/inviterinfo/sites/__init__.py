@@ -123,7 +123,7 @@ class _IInviterInfoHandler(metaclass=ABCMeta):
                     
                     # 返回前记录页面内容摘要（前100个字符）
                     content_preview = response.text[:100] + "..." if len(response.text) > 100 else response.text
-                    logger.debug(f"[{site_name}] 页面内容摘要: {content_preview}")
+                    logger.debug(f"[{site_name}] 页面内容: {response.text}")
                     
                     return response.text
                 except requests.exceptions.ConnectionError as e:

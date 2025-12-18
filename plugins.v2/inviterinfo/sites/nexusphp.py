@@ -86,7 +86,6 @@ class NexusPHPInviterInfoHandler(_IInviterInfoHandler):
             logger.error("解析NexusPHP用户页面失败")
             return None
         logger.info("成功解析NexusPHP用户页面")
-        logger.debug("HTML解析树构建完成")
 
         # 核心NexusPHP表格结构邀请人信息XPath（仅保留NP核心结构规则）
         inviter_xpaths = [
