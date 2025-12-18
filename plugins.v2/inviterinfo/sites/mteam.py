@@ -168,7 +168,6 @@ class MTeamInviterInfoHandler(_IInviterInfoHandler):
         """
         site_name = site_info.get("name", "")
         api_key = site_info.get("apikey", "")
-        authorization = site_info.get("token", "")  # 使用token字段作为Authorization
         try:
             site_url = site_info.get("url", "")
             if not site_url:
@@ -209,7 +208,7 @@ class MTeamInviterInfoHandler(_IInviterInfoHandler):
             # 尝试通过API获取用户ID
             try:
                 # 检查API认证信息
-                if not api_key or not authorization:
+                if not api_key:
                     logger.error(f"站点 {site_name} API认证信息不完整")
                     return None
                 # 提取API域名
@@ -222,9 +221,7 @@ class MTeamInviterInfoHandler(_IInviterInfoHandler):
                     "Content-Type": "application/json",
                     "User-Agent": site_info.get("ua", "Mozilla/5.0"),
                     "Accept": "application/json, text/plain, */*",
-                    "Authorization": authorization,  # 恢复 Authorization
-                    "x-api-key": api_key,
-                    # "ts": str(int(time.time())) # 保持移除 ts
+                    "x-api-key": api_key
                 }
 
                 # 重置会话并添加API认证头
