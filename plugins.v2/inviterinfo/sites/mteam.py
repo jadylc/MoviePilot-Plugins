@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 from typing import Dict, Optional
 from app.log import logger
+import requests
 from . import _IInviterInfoHandler
 
 
@@ -247,6 +248,64 @@ class MTeamInviterInfoHandler(_IInviterInfoHandler):
             logger.error(f"获取用户ID失败: {str(e)}")
             return None
 
+    def _get_user_profile(self, api_base_url: str, session: requests.Session, site_name: str) -> Dict[str, Any]:
+        """
+        获取用户信息
+        :param api_base_url: API基础URL
+        :param session: 请求会话
+        :param site_name: 站点名称
+        :return: 用户信息
+        """
+        try:
+            profile_url = f"{api_base_url}/member/profile"
+            logger.info(f"站点 {site_name} 获取用户信息: {profile_url}")
+
+            # --- 修正：严格按照 SiteChain.__mteam_test 方式准备 Headers ---
+            # 获取原始 session 中的 UA 和 API Key
+            original_ua = session.headers.get("User-Agent", "Mozilla/5.0")
+            original_api_key = session.headers.get("x-api-key")
+
+            if not original_api_key:
+                logger.error(f"无法从会话中获取 x-api-key")
+                return {}
+
+            # 只构造必要的 Headers
+            request_headers = {
+                "User-Agent": original_ua,
+                "Accept": "application/json, text/plain, */*",
+                "x-api-key": original_api_key
+            }
+
+            # 不再设置 Content-Type 和 Authorization
+            logger.debug(f"为 /member/profile 设置 Headers: {request_headers}")
+            # --- 修正结束 ---
+
+            # 使用修正后的 headers 发送 POST 请求，不带 uid 参数，不显式设置 Content-Type
+            # 注意：这里直接用 requests.post 而不是 session.post，避免 session 默认 headers 干扰
+            response = requests.post(profile_url, headers=request_headers, timeout=(10, 30), proxies=session.proxies)
+
+            if response.status_code != 200:
+                logger.error(f"站点 {site_name} 获取用户信息失败，状态码: {response.status_code}")
+                # 尝试解析错误信息
+                try:
+                    error_data = response.json()
+                    error_msg = error_data.get("message", response.reason)
+                    logger.error(f"API错误信息: {error_msg}")
+                except Exception:
+                    logger.error(f"无法解析API错误响应: {response.text[:200]}")
+                return {}
+
+            data = response.json()
+            if data.get("code") != "0" or not data.get("data"):
+                error_msg = data.get("message", "未知错误")
+                logger.error(f"站点 {site_name} 获取用户信息API返回错误: {error_msg}")
+                return {}
+
+            return data.get("data", {})
+
+        except Exception as e:
+            logger.error(f"站点 {site_name} 获取用户信息异常: {str(e)}")
+            return {}
 
 
     def _extract_api_domain(self, url: str) -> str:
