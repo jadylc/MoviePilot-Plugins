@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-from typing import Dict, Optional
+from typing import Dict, Optional, Any
 from app.log import logger
 import requests
 from . import _IInviterInfoHandler
