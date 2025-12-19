@@ -14,11 +14,11 @@ from app.schemas import ServiceInfo
 from app.utils.string import StringUtils
 
 
-class SiteTag(_PluginBase):
+class SiteTagLimit(_PluginBase):
     # 插件名称
-    plugin_name = "站点标签"
+    plugin_name = "站点标签&限速"
     # 插件描述
-    plugin_desc = "兼容新站"
+    plugin_desc = "打标限速一波流"
     # 插件图标
     plugin_icon = "Centos_A.png"
     # 插件版本
@@ -28,7 +28,7 @@ class SiteTag(_PluginBase):
     # 作者主页
     author_url = "https://github.com/jadylc"
     # 插件配置项ID前缀
-    plugin_config_prefix = "tagv2_"
+    plugin_config_prefix = "sitetaglimit_"
     # 加载顺序
     plugin_order = 1
     # 可使用的用户级别
@@ -43,14 +43,13 @@ class SiteTag(_PluginBase):
     _enabled = False
     _onlyonce = False
     _cover = False
-    _site_first = False
     _interval = "计划任务"
     _interval_cron = "42 2 * * *"
     _interval_time = 24
     _interval_unit = "小时"
     _downloaders = None
     _tracker_map = "tracker关键字:站点标签"
-    _save_path_map = "保存地址:标签"
+    _tag_map = "标签:限速(KB)"
 
     def init_plugin(self, config: dict = None):
         self.sites_helper = SitesHelper()
@@ -60,14 +59,13 @@ class SiteTag(_PluginBase):
             self._enabled = config.get("enabled")
             self._onlyonce = config.get("onlyonce")
             self._cover = config.get("cover")
-            self._site_first = config.get("site_first")
             self._interval = config.get("interval") or "计划任务"
             self._interval_cron = config.get("interval_cron") or "0 12 * * *"
             self._interval_time = self.str_to_number(config.get("interval_time"), 24)
             self._interval_unit = config.get("interval_unit") or "小时"
             self._downloaders = config.get("downloaders")
             self._tracker_map = config.get("tracker_map") or "tracker地址:站点标签"
-            self._save_path_map = config.get("save_path_map") or "保存地址:标签"
+            self._tag_map = config.get("tag_map") or "标签:限速(KB)"
 
         # 停止现有任务
         self.stop_service()
@@ -80,7 +78,7 @@ class SiteTag(_PluginBase):
             config.update({"onlyonce": self._onlyonce})
             self.update_config(config)
             # 启动自动标签
-            self._scheduler.add_job(func=self._complemented_tags, trigger='date',
+            self._scheduler.add_job(func=self._complemented_tags_and_limits, trigger='date',
                                     run_date=datetime.datetime.now(
                                         tz=pytz.timezone(settings.TZ)) + datetime.timedelta(seconds=3)
                                     )
@@ -139,10 +137,10 @@ class SiteTag(_PluginBase):
                 if self._interval == "固定间隔":
                     if self._interval_unit == "小时":
                         return [{
-                            "id": "BigTag",
-                            "name": "自动补全标签(大容量)",
+                            "id": "SiteTagLimit",
+                            "name": "站点标签&限速",
                             "trigger": "interval",
-                            "func": self._complemented_tags,
+                            "func": self._complemented_tags_and_limits,
                             "kwargs": {
                                 "hours": self._interval_time
                             }
@@ -152,20 +150,20 @@ class SiteTag(_PluginBase):
                             self._interval_time = 5
                             logger.info(f"{self.LOG_TAG}启动定时服务: 最小不少于5分钟, 防止执行间隔太短任务冲突")
                         return [{
-                            "id": "BigTag",
-                            "name": "自动补全标签(大容量)",
+                            "id": "SiteTagLimit",
+                            "name": "站点标签&限速",
                             "trigger": "interval",
-                            "func": self._complemented_tags,
+                            "func": self._complemented_tags_and_limits,
                             "kwargs": {
                                 "minutes": self._interval_time
                             }
                         }]
                 else:
                     return [{
-                        "id": "BigTag",
-                        "name": "自动补全标签(大容量)",
+                        "id": "SiteTagLimit",
+                        "name": "站点标签&限速",
                         "trigger": CronTrigger.from_crontab(self._interval_cron),
-                        "func": self._complemented_tags,
+                        "func": self._complemented_tags_and_limits,
                         "kwargs": {}
                     }]
         return []
@@ -177,27 +175,30 @@ class SiteTag(_PluginBase):
         except ValueError:
             return i
 
-    def _complemented_tags(self):
+    def _complemented_tags_and_limits(self):
         if not self.service_infos:
             return
         logger.info(f"{self.LOG_TAG}开始执行 ...")
         # 所有站点索引
         indexers = [indexer.get("name") for indexer in self.sites_helper.get_indexers()]
         indexers = set(indexers)
-        tracker_maps = self._tracker_map.split("|")
-        save_path_maps = self._save_path_map.split("|")
+        # track准备
+        tracker_maps = self._tracker_map.split("\n")
         tracker_map = {}
-        save_path_map = {}
         for item in tracker_maps:
             i = item.split(":")
             _tracker = i[0]
             _label = i[1]
             tracker_map[_tracker] = _label
-        for item in save_path_maps:
+            indexers.add(_label)
+        # 标签准备
+        tag_maps = self._tag_map.split("\n")
+        tag_map = {}
+        for item in tag_maps:
             i = item.split(":")
-            _path = i[0]
-            _label = i[1]
-            save_path_map[_path] = _label
+            _tag = i[0]
+            _speed = int(i[1])
+            tag_map[_tag.lower()] = _speed
         for service in self.service_infos.values():
             downloader = service.name
             downloader_obj = service.instance
@@ -223,10 +224,6 @@ class SiteTag(_PluginBase):
                     if not _hash or not _path:
                         continue
                     torrent_labels = []
-                    for key, label in save_path_map.items():
-                        if key in _path:
-                            torrent_labels.append(label)
-                            break
                     site = None
                     torrent_tags = None
                     if service.type == "qbittorrent":
@@ -244,7 +241,7 @@ class SiteTag(_PluginBase):
                         trackers = self._get_trackers(torrent=torrent, dl_type=service.type)
                         for tracker in trackers:
                             for key, label in tracker_map.items():
-                                if key in tracker:
+                                if key.lower() in tracker.lower():
                                     site = label
                                     break
                             else:
@@ -257,6 +254,17 @@ class SiteTag(_PluginBase):
                                 break
                     if torrent_labels:
                         self._set_torrent_info(service=service, _hash=_hash, _tags=torrent_labels, _original_tags=torrent_tags)
+                    #限速
+                    if service.type == "transmission":
+                        if not self._cover and downloader_obj.trc.get_torrent(torrent_id=_hash).upload_limited:
+                            continue
+                    # 获取种子当前标签
+                    torrent_tags = self._get_tags(torrent=torrent, dl_type=service.type)
+                    for tag in torrent_tags:
+                        for key, speed in tag_map.items():
+                            if tag.lower() in key:
+                                self._set_torrent_speed(service=service, _hash=_hash, _speed=speed)
+                                break
                 except Exception as e:
                     logger.error(
                         f"{self.LOG_TAG}分析种子信息时发生了错误: {str(e)}")
@@ -266,14 +274,6 @@ class SiteTag(_PluginBase):
     def _get_hash(torrent: Any, dl_type: str):
         try:
             return torrent.get("hash") if dl_type == "qbittorrent" else torrent.hashString
-        except Exception as e:
-            print(str(e))
-            return ""
-
-    @staticmethod
-    def _get_path(torrent: Any, dl_type: str):
-        try:
-            return torrent.get("save_path") if dl_type == "qbittorrent" else torrent.download_dir
         except Exception as e:
             print(str(e))
             return ""
@@ -298,6 +298,17 @@ class SiteTag(_PluginBase):
             print(str(e))
             return []
 
+    def _set_torrent_speed(self, service: ServiceInfo, _hash: str, _speed: int = None):
+        if not service or not service.instance:
+            return
+        downloader_obj = service.instance
+        # 下载器api不通用, 因此需分开处理
+        if service.type == "qbittorrent":
+            downloader_obj.qbc.torrents_set_upload_limit(torrent_hashes=_hash, limit=_speed)
+        else:
+            downloader_obj.change_torrent(hash_string=_hash, upload_limit=_speed)
+        logger.warn(f"{self.LOG_TAG}下载器: {service.name} 种子id: {_hash}  上传限速为 {_speed}KB/S")
+
     def _set_torrent_info(self, service: ServiceInfo, _hash: str, _tags=None, _original_tags: list = None):
         if not service or not service.instance:
             return
@@ -313,8 +324,7 @@ class SiteTag(_PluginBase):
             if service.type == "qbittorrent":
                 downloader_obj.set_torrents_tag(ids=_hash, tags=_tags)
             else:
-                if self._site_first:
-                    _tags = _tags[::-1]
+                _tags = _tags[::-1]
                 downloader_obj.trc.change_torrent(ids=_hash,labels=_tags)
         logger.warn(f"{self.LOG_TAG}下载器: {service.name} 种子id: {_hash} {('  标签: ' + ','.join(_tags)) if _tags else ''}")
 
@@ -352,21 +362,6 @@ class SiteTag(_PluginBase):
                                         'props': {
                                             'model': 'cover',
                                             'label': '覆盖模式',
-                                        }
-                                    }
-                                ]
-                            },
-                            {
-                                'component': 'VCol',
-                                'props': {
-                                    'cols': 3
-                                },
-                                'content': [
-                                    {
-                                        'component': 'VSwitch',
-                                        'props': {
-                                            'model': 'site_first',
-                                            'label': '站点优先',
                                         }
                                     }
                                 ]
@@ -449,7 +444,7 @@ class SiteTag(_PluginBase):
                                         'props': {
                                             'model': 'interval_cron',
                                             'label': '计划任务设置',
-                                            'placeholder': '0 12 * * *'
+                                            'placeholder': '15 7 * * *'
                                         }
                                     }
                                 ]
@@ -506,9 +501,9 @@ class SiteTag(_PluginBase):
                                         "component": "VTextarea",
                                         "props": {
                                             "model": "tracker_map",
-                                            "label": "tracker网址:站点标签",
+                                            "label": "tracker网址（可部分）:站点标签",
                                             "rows": 5,
-                                            "placeholder": "如:tracker.XXX:XX|tracker.YYY:YY",
+                                            "placeholder": "如:tracker.XXX:XX\ntracker.YYY:YY",
                                         },
                                     }
                                 ],
@@ -527,10 +522,10 @@ class SiteTag(_PluginBase):
                                     {
                                         "component": "VTextarea",
                                         "props": {
-                                            "model": "save_path_map",
-                                            "label": "保存地址:标签",
+                                            "model": "tag_map",
+                                            "label": "标签:限速(KB)",
                                             "rows": 5,
-                                            "placeholder": "如:/volume1/XX保种/:XX保种|/volume1/保种/:保种",
+                                            "placeholder": "如:XX:50\nYY:100",
                                         },
                                     }
                                 ],
@@ -551,7 +546,7 @@ class SiteTag(_PluginBase):
                                         'props': {
                                             'type': 'info',
                                             'variant': 'tonal',
-                                            'text': '用|作为分隔符，越靠前优先级越高'
+                                            'text': '默认有tracker和站点映射，有填写的会优先\n限速标签大小写通用匹配，部分也可匹配'
                                         }
                                     }
                                 ]
@@ -564,13 +559,12 @@ class SiteTag(_PluginBase):
             "enabled": False,
             "onlyonce": False,
             "cover": False,
-            "site_first": False,
             "interval": "计划任务",
             "interval_cron": "0 12 * * *",
             "interval_time": "24",
             "interval_unit": "小时",
             "tracker_map": "tracker地址:站点标签",
-            "save_path_map": "保存地址:标签"
+            "tag_map": "标签:限速(KB)"
         }
 
     def get_page(self) -> List[dict]:

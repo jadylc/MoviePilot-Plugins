@@ -19,8 +19,8 @@
       "v1.0.0": "MoviePilot V2 版本PT站邀请人统计插件"
     }
   },
-  "SiteTag": {
-    "name": "站点标签",
+  "SiteTagLimit": {
+    "name": "站点标签&限速",
     "description": "修补及优化",
     "labels": "下载管理",
     "version": "1.0.0",
@@ -28,7 +28,7 @@
     "author": "Jadylc",
     "level": 2,
     "history": {
-      "v1.0.0": "MoviePilot V2 站点标签插件"
+      "v1.0.0": "站点标签&限速"
     }
   }
 }
