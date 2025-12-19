@@ -148,7 +148,7 @@ class SiteTagLimit(_PluginBase):
                     else:
                         if self._interval_time < 5:
                             self._interval_time = 5
-                            logger.info(f"{self.LOG_TAG}启动定时服务: 最小不少于5分钟, 防止执行间隔太短任务冲突")
+                            logger.info(f"启动定时服务: 最小不少于5分钟, 防止执行间隔太短任务冲突")
                         return [{
                             "id": "SiteTagLimit",
                             "name": "站点标签&限速",
@@ -178,7 +178,7 @@ class SiteTagLimit(_PluginBase):
     def _complemented_tags_and_limits(self):
         if not self.service_infos:
             return
-        logger.info(f"{self.LOG_TAG}开始执行 ...")
+        logger.info(f"开始执行 ...")
         # 所有站点索引
         indexers = [indexer.get("name") for indexer in self.sites_helper.get_indexers()]
         indexers = set(indexers)
@@ -202,20 +202,20 @@ class SiteTagLimit(_PluginBase):
         for service in self.service_infos.values():
             downloader = service.name
             downloader_obj = service.instance
-            logger.info(f"{self.LOG_TAG}开始扫描下载器 {downloader} ...")
+            logger.info(f"开始扫描下载器 {downloader} ...")
             if not downloader_obj:
-                logger.error(f"{self.LOG_TAG} 获取下载器失败 {downloader}")
+                logger.error(f" 获取下载器失败 {downloader}")
                 continue
             # 获取下载器中的种子
             torrents, error = downloader_obj.get_torrents()
             # 如果下载器获取种子发生错误 或 没有种子 则跳过
             if error or not torrents:
                 continue
-            logger.info(f"{self.LOG_TAG}下载器 {downloader} 分析种子信息中 ...")
+            logger.info(f"下载器 {downloader} 分析种子信息中 ...")
             for torrent in torrents:
                 try:
                     if self._event.is_set():
-                        logger.info(f"{self.LOG_TAG}停止服务")
+                        logger.info(f"停止服务")
                         return
                     # 获取种子hash
                     _hash = self._get_hash(torrent=torrent, dl_type=service.type)
@@ -267,8 +267,8 @@ class SiteTagLimit(_PluginBase):
                                 break
                 except Exception as e:
                     logger.error(
-                        f"{self.LOG_TAG}分析种子信息时发生了错误: {str(e)}")
-        logger.info(f"{self.LOG_TAG}执行完成")
+                        f"分析种子信息时发生了错误: {str(e)}")
+        logger.info(f"执行完成")
 
     @staticmethod
     def _get_hash(torrent: Any, dl_type: str):
@@ -307,7 +307,7 @@ class SiteTagLimit(_PluginBase):
             downloader_obj.qbc.torrents_set_upload_limit(torrent_hashes=_hash, limit=_speed)
         else:
             downloader_obj.change_torrent(hash_string=_hash, upload_limit=_speed)
-        logger.warn(f"{self.LOG_TAG}下载器: {service.name} 种子id: {_hash}  上传限速为 {_speed}KB/S")
+        logger.warn(f"下载器: {service.name} 种子id: {_hash}  上传限速为 {_speed}KB/S")
 
     def _set_torrent_info(self, service: ServiceInfo, _hash: str, _tags=None, _original_tags: list = None):
         if not service or not service.instance:
@@ -326,7 +326,7 @@ class SiteTagLimit(_PluginBase):
             else:
                 _tags = _tags[::-1]
                 downloader_obj.trc.change_torrent(ids=_hash,labels=_tags)
-        logger.warn(f"{self.LOG_TAG}下载器: {service.name} 种子id: {_hash} {('  标签: ' + ','.join(_tags)) if _tags else ''}")
+        logger.warn(f"下载器: {service.name} 种子id: {_hash} {('  标签: ' + ','.join(_tags)) if _tags else ''}")
 
     def get_form(self) -> Tuple[List[dict], Dict[str, Any]]:
         return [
