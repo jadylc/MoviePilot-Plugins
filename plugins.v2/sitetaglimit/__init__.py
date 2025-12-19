@@ -219,9 +219,7 @@ class SiteTagLimit(_PluginBase):
                         return
                     # 获取种子hash
                     _hash = self._get_hash(torrent=torrent, dl_type=service.type)
-                    # 获取种子存储地址
-                    _path = self._get_path(torrent=torrent, dl_type=service.type)
-                    if not _hash or not _path:
+                    if not _hash:
                         continue
                     torrent_labels = []
                     site = None
