@@ -30,5 +30,17 @@
     "history": {
       "v1.0.0": "站点标签&限速"
     }
+  },
+  "EnshanSign": {
+    "name": "??????",
+    "description": "?? Cookie ????????????????? Cron ??",
+    "labels": "??",
+    "version": "1.0.0",
+    "icon": "Adguard_A.png",
+    "author": "Jadylc",
+    "level": 2,
+    "history": {
+      "v1.0.0": "MoviePilot V2 ????????"
+    }
   }
 }
