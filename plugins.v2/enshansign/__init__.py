@@ -22,7 +22,7 @@ class EnshanSign(_PluginBase):
     plugin_name = "恩山论坛签到"
     plugin_desc = "使用 Cookie 执行恩山论坛自动签到（支持多账号）"
     plugin_icon = "Adguard_A.png"
-    plugin_version = "1.0.0"
+    plugin_version = "1.0.1"
     plugin_author = "Jadylc"
     author_url = "https://github.com/jadylc"
     plugin_config_prefix = "enshansign_"

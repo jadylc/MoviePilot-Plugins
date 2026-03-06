@@ -35,11 +35,12 @@
     "name": "恩山论坛签到",
     "description": "使用 Cookie 执行恩山论坛每日签到，支持多账号与 Cron 定时",
     "labels": "签到",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "icon": "Adguard_A.png",
     "author": "Jadylc",
     "level": 2,
     "history": {
+      "v1.0.1": "增加测试",
       "v1.0.0": "MoviePilot V2 恩山论坛签到插件"
     }
   }
