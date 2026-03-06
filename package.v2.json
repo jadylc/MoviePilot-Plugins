@@ -1,47 +1,48 @@
-{
+﻿{
   "InviterInfo": {
-    "name": "PT站邀请人统计",
-    "description": "统计所有PT站的上家信息，包括邀请人信息和邮箱（如果隐私设置允许）。",
-    "labels": "PT站,统计",
+    "name": "PT绔欓個璇蜂汉缁熻",
+    "description": "缁熻鎵€鏈塒T绔欑殑涓婂淇℃伅锛屽寘鎷個璇蜂汉淇℃伅鍜岄偖绠憋紙濡傛灉闅愮璁剧疆鍏佽锛夈€?,
+    "labels": "PT绔?缁熻",
     "version": "1.0.12",
     "icon": "Casaos_A.png",
     "author": "Jadylc",
     "level": 2,
     "history": {
-      "1.0.12": "搞不定馒头",
-      "v1.0.7": "修复mt用户id获取",
-      "v1.0.6": "修复mt用户id获取",
-      "v1.0.5": "修复mt用户id获取",
-      "v1.0.4": "修复其他PT站邀请人提取问题",
-      "v1.0.3": "修复其他PT站邀请人提取问题",
-      "v1.0.2": "修复m-team邀请人提取问题",
-      "v1.0.1": "支持mt",
-      "v1.0.0": "MoviePilot V2 版本PT站邀请人统计插件"
+      "1.0.12": "鎼炰笉瀹氶澶?,
+      "v1.0.7": "淇mt鐢ㄦ埛id鑾峰彇",
+      "v1.0.6": "淇mt鐢ㄦ埛id鑾峰彇",
+      "v1.0.5": "淇mt鐢ㄦ埛id鑾峰彇",
+      "v1.0.4": "淇鍏朵粬PT绔欓個璇蜂汉鎻愬彇闂",
+      "v1.0.3": "淇鍏朵粬PT绔欓個璇蜂汉鎻愬彇闂",
+      "v1.0.2": "淇m-team閭€璇蜂汉鎻愬彇闂",
+      "v1.0.1": "鏀寔mt",
+      "v1.0.0": "MoviePilot V2 鐗堟湰PT绔欓個璇蜂汉缁熻鎻掍欢"
     }
   },
   "SiteTagLimit": {
-    "name": "站点标签&限速",
-    "description": "修补及优化",
-    "labels": "下载管理",
+    "name": "绔欑偣鏍囩&闄愰€?,
+    "description": "淇ˉ鍙婁紭鍖?,
+    "labels": "涓嬭浇绠＄悊",
     "version": "1.0.0",
     "icon": "Centos_A.png",
     "author": "Jadylc",
     "level": 2,
     "history": {
-      "v1.0.0": "站点标签&限速"
+      "v1.0.0": "绔欑偣鏍囩&闄愰€?
     }
   },
   "EnshanSign": {
-    "name": "恩山论坛签到",
-    "description": "使用 Cookie 执行恩山论坛每日签到，支持多账号与 Cron 定时",
-    "labels": "签到",
-    "version": "1.0.1",
+    "name": "鎭╁北璁哄潧绛惧埌",
+    "description": "浣跨敤 Cookie 鎵ц鎭╁北璁哄潧姣忔棩绛惧埌锛屾敮鎸佸璐﹀彿涓?Cron 瀹氭椂",
+    "labels": "绛惧埌",
+    "version": "1.0.2",
     "icon": "Adguard_A.png",
     "author": "Jadylc",
     "level": 2,
     "history": {
-      "v1.0.1": "增加测试",
-      "v1.0.0": "MoviePilot V2 恩山论坛签到插件"
+      "v1.0.2": "对齐浏览器请求头，增加诊断日志并移除多路径探测",
+      "v1.0.1": "澧炲姞娴嬭瘯",
+      "v1.0.0": "MoviePilot V2 鎭╁北璁哄潧绛惧埌鎻掍欢"
     }
   }
 }

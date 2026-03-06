@@ -22,7 +22,7 @@ class EnshanSign(_PluginBase):
     plugin_name = "恩山论坛签到"
     plugin_desc = "使用 Cookie 执行恩山论坛自动签到（支持多账号）"
     plugin_icon = "Adguard_A.png"
-    plugin_version = "1.0.1"
+    plugin_version = "1.0.2"
     plugin_author = "Jadylc"
     author_url = "https://github.com/jadylc"
     plugin_config_prefix = "enshansign_"
@@ -39,12 +39,6 @@ class EnshanSign(_PluginBase):
 
     _base_url = "https://www.right.com.cn/forum"
     _credit_url = f"{_base_url}/home.php?mod=spacecp&ac=credit&showcredit=1"
-    _login_urls = [
-        f"{_base_url}/forum.php",
-        f"{_base_url}/",
-        _credit_url,
-        f"{_base_url}/home.php?mod=space",
-    ]
     _headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
                       "(KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36",
@@ -263,39 +257,32 @@ class EnshanSign(_PluginBase):
         formhash = None
         uid = self._extract_uid_from_cookie(cookie)
         logger.info(f"[enshan] login cookie state: {self._cookie_debug_summary(cookie)}")
-        login_urls = [
-            f"{self._base_url}/plugin.php?id=erling_qd:sign",
-            *self._login_urls,
-            f"{self._base_url}/plugin.php?id=erling_qd%3Asign",
-        ]
-        for login_url in login_urls:
-            try:
-                response = session.get(login_url, timeout=20)
-                traces.append(f"{login_url} -> {response.status_code}")
-                logger.info(f"[enshan] login probe: {login_url} status={response.status_code}")
-                logger.info(f"[enshan] login probe response: {self._response_debug_summary(response)}")
-                if response.status_code == 200:
-                    page_formhash, page_uid = self._extract_auth_params(response.text)
-                    formhash = page_formhash or formhash
-                    uid = page_uid or uid
-                    if formhash and uid:
-                        return True, "login ok", formhash
-                    if formhash:
-                        return True, "login ok (formhash)", formhash
-                    logger.warning(
-                        f"[enshan] login 200 but auth params missing: "
-                        f"{self._response_debug_summary(response)} body={self._response_body_preview(response)}"
-                    )
-                elif response.status_code in self._cf_status_codes:
-                    logger.warning(
-                        f"[enshan] login probe got 52x: "
-                        f"{self._response_debug_summary(response)} body={self._response_body_preview(response)}"
-                    )
-                    time.sleep(random.uniform(1.3, 2.6))
-            except requests.RequestException as err:
-                traces.append(f"{login_url} -> error: {err}")
-                logger.warning(f"[enshan] login probe request error: {login_url} error={err}")
-                time.sleep(random.uniform(1.0, 2.0))
+        login_url = f"{self._base_url}/plugin.php?id=erling_qd:sign"
+        try:
+            response = session.get(login_url, timeout=20)
+            traces.append(f"{login_url} -> {response.status_code}")
+            logger.info(f"[enshan] login probe: {login_url} status={response.status_code}")
+            logger.info(f"[enshan] login probe response: {self._response_debug_summary(response)}")
+            if response.status_code == 200:
+                page_formhash, page_uid = self._extract_auth_params(response.text)
+                formhash = page_formhash or formhash
+                uid = page_uid or uid
+                if formhash and uid:
+                    return True, "login ok", formhash
+                if formhash:
+                    return True, "login ok (formhash)", formhash
+                logger.warning(
+                    f"[enshan] login 200 but auth params missing: "
+                    f"{self._response_debug_summary(response)} body={self._response_body_preview(response)}"
+                )
+            elif response.status_code in self._cf_status_codes:
+                logger.warning(
+                    f"[enshan] login probe got 52x: "
+                    f"{self._response_debug_summary(response)} body={self._response_body_preview(response)}"
+                )
+        except requests.RequestException as err:
+            traces.append(f"{login_url} -> error: {err}")
+            logger.warning(f"[enshan] login probe request error: {login_url} error={err}")
 
         hint = ""
         trace_text = "; ".join(traces)
