@@ -47,15 +47,23 @@ class EnshanSign(_PluginBase):
     ]
     _headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
-                      "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+                      "(KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36",
         "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,"
                   "image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
-        "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8",
+        "Accept-Language": "zh-CN,zh;q=0.9,ja;q=0.8",
         "Accept-Encoding": "gzip, deflate, br",
         "Connection": "keep-alive",
         "Upgrade-Insecure-Requests": "1",
         "Cache-Control": "max-age=0",
+        "Sec-Fetch-Dest": "document",
+        "Sec-Fetch-Mode": "navigate",
+        "Sec-Fetch-Site": "same-origin",
+        "Sec-Fetch-User": "?1",
+        "sec-ch-ua": '"Not:A-Brand";v="99", "Google Chrome";v="145", "Chromium";v="145"',
+        "sec-ch-ua-mobile": "?0",
+        "sec-ch-ua-platform": '"Windows"',
     }
+    _cf_status_codes = (520, 521, 522, 523, 524)
 
     def init_plugin(self, config: dict = None):
         self.stop_service()
@@ -125,10 +133,84 @@ class EnshanSign(_PluginBase):
                     items.append(part)
         return items
 
+    @staticmethod
+    def _cookie_to_dict(cookie: str) -> Dict[str, str]:
+        cookie_map: Dict[str, str] = {}
+        if not cookie:
+            return cookie_map
+        for item in cookie.split(";"):
+            item = item.strip()
+            if not item or "=" not in item:
+                continue
+            key, value = item.split("=", 1)
+            key = key.strip()
+            value = value.strip()
+            if key:
+                cookie_map[key] = value
+        return cookie_map
+
+    def _apply_cookie(self, session: requests.Session, cookie: str):
+        cookie_map = self._cookie_to_dict(cookie)
+        if not cookie_map:
+            return
+        session.headers["Cookie"] = "; ".join([f"{k}={v}" for k, v in cookie_map.items()])
+        for domain in ("www.right.com.cn", ".right.com.cn", "right.com.cn"):
+            for key, value in cookie_map.items():
+                session.cookies.set(key, value, domain=domain, path="/")
+
+    @staticmethod
+    def _cookie_has_clearance(cookie: str) -> bool:
+        cookie_map = EnshanSign._cookie_to_dict(cookie)
+        return bool(cookie_map.get("cf_clearance") or cookie_map.get("__cf_bm"))
+
+    @staticmethod
+    def _cookie_debug_summary(cookie: str) -> str:
+        cookie_map = EnshanSign._cookie_to_dict(cookie)
+        keys = [
+            "rHEX_2132_auth",
+            "rHEX_2132_saltkey",
+            "rHEX_2132_sid",
+            "rHEX_2132_lastact",
+            "https_waf_cookie",
+            "https_ydclearance",
+            "cf_clearance",
+            "__cf_bm",
+        ]
+        parts = []
+        for key in keys:
+            value = cookie_map.get(key)
+            if value:
+                parts.append(f"{key}=present(len={len(value)})")
+            else:
+                parts.append(f"{key}=missing")
+        return ", ".join(parts)
+
+    @staticmethod
+    def _response_debug_summary(response: requests.Response) -> str:
+        server = response.headers.get("Server", "-")
+        location = response.headers.get("Location", "-")
+        x_cache = response.headers.get("X-Cache", "-")
+        x_request_id = response.headers.get("X-Request-Id", "-")
+        cookie_keys = ",".join(response.cookies.keys()) if response.cookies else "-"
+        return (
+            f"server={server}, location={location}, x-cache={x_cache}, "
+            f"x-request-id={x_request_id}, set-cookie-keys={cookie_keys}"
+        )
+
+    @staticmethod
+    def _response_body_preview(response: requests.Response, limit: int = 160) -> str:
+        text = (response.text or "").strip()
+        if not text:
+            return ""
+        text = re.sub(r"\s+", " ", text)
+        return text[:limit]
+
     def _build_session(self, cookie: str) -> requests.Session:
         session = requests.Session()
         session.headers.update(self._headers)
-        session.headers["Cookie"] = cookie
+        session.headers["Referer"] = f"{self._base_url}/forum.php"
+        session.headers["Origin"] = "https://www.right.com.cn"
+        self._apply_cookie(session, cookie)
         retry = Retry(
             total=3,
             connect=3,
@@ -142,6 +224,13 @@ class EnshanSign(_PluginBase):
         session.mount("http://", adapter)
         session.mount("https://", adapter)
         return session
+
+    def _extract_uid_from_cookie(self, cookie: str) -> Optional[str]:
+        cookie_map = self._cookie_to_dict(cookie)
+        for key, value in cookie_map.items():
+            if key.endswith("_uid") and value.isdigit():
+                return value
+        return None
 
     @staticmethod
     def _extract_auth_params(page_text: str) -> Tuple[Optional[str], Optional[str]]:
@@ -169,58 +258,106 @@ class EnshanSign(_PluginBase):
                 break
         return formhash, uid
 
-    def _daily_login(self, session: requests.Session) -> Tuple[bool, str, Optional[str]]:
+    def _daily_login(self, session: requests.Session, cookie: str) -> Tuple[bool, str, Optional[str]]:
         traces = []
         formhash = None
-        uid = None
-        for login_url in self._login_urls:
+        uid = self._extract_uid_from_cookie(cookie)
+        logger.info(f"[enshan] login cookie state: {self._cookie_debug_summary(cookie)}")
+        login_urls = [
+            f"{self._base_url}/plugin.php?id=erling_qd:sign",
+            *self._login_urls,
+            f"{self._base_url}/plugin.php?id=erling_qd%3Asign",
+        ]
+        for login_url in login_urls:
             try:
                 response = session.get(login_url, timeout=20)
                 traces.append(f"{login_url} -> {response.status_code}")
-                logger.info(f"[enshan] 登录探测: {login_url} status={response.status_code}")
+                logger.info(f"[enshan] login probe: {login_url} status={response.status_code}")
+                logger.info(f"[enshan] login probe response: {self._response_debug_summary(response)}")
                 if response.status_code == 200:
-                    formhash, uid = self._extract_auth_params(response.text)
+                    page_formhash, page_uid = self._extract_auth_params(response.text)
+                    formhash = page_formhash or formhash
+                    uid = page_uid or uid
                     if formhash and uid:
-                        return True, "登录成功", formhash
-                elif response.status_code in (520, 521, 522, 523, 524):
+                        return True, "login ok", formhash
+                    if formhash:
+                        return True, "login ok (formhash)", formhash
+                    logger.warning(
+                        f"[enshan] login 200 but auth params missing: "
+                        f"{self._response_debug_summary(response)} body={self._response_body_preview(response)}"
+                    )
+                elif response.status_code in self._cf_status_codes:
+                    logger.warning(
+                        f"[enshan] login probe got 52x: "
+                        f"{self._response_debug_summary(response)} body={self._response_body_preview(response)}"
+                    )
                     time.sleep(random.uniform(1.3, 2.6))
             except requests.RequestException as err:
                 traces.append(f"{login_url} -> error: {err}")
+                logger.warning(f"[enshan] login probe request error: {login_url} error={err}")
                 time.sleep(random.uniform(1.0, 2.0))
-        return False, f"登录失败: {'; '.join(traces)}", None
+
+        hint = ""
+        trace_text = "; ".join(traces)
+        if any(f" -> {code}" in trace_text for code in self._cf_status_codes):
+            if not self._cookie_has_clearance(cookie):
+                hint = " (detected 52x and cookie may miss cf_clearance/__cf_bm)"
+            else:
+                hint = " (detected 52x from Cloudflare/proxy path)"
+        return False, f"login failed: {trace_text}{hint}", None
+
 
     def _perform_checkin(self, session: requests.Session, cookie: str, formhash: str) -> Tuple[bool, str]:
-        url = f"{self._base_url}/plugin.php?id=erling_qd%3Aaction&action=sign"
+        url = f"{self._base_url}/plugin.php?id=erling_qd:action&action=sign"
         headers = {
             "User-Agent": self._headers["User-Agent"],
             "Accept": "application/json, text/javascript, */*; q=0.01",
+            "Accept-Language": self._headers["Accept-Language"],
+            "Accept-Encoding": self._headers["Accept-Encoding"],
             "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
             "X-Requested-With": "XMLHttpRequest",
             "Origin": "https://www.right.com.cn",
             "Connection": "keep-alive",
-            "Referer": "https://www.right.com.cn/forum/erling_qd-sign_in.html",
-            "Cookie": cookie,
+            "Referer": f"{self._base_url}/plugin.php?id=erling_qd:sign",
             "Pragma": "no-cache",
             "Cache-Control": "no-cache",
+            "Sec-Fetch-Dest": "empty",
+            "Sec-Fetch-Mode": "cors",
+            "Sec-Fetch-Site": "same-origin",
+            "sec-ch-ua": self._headers["sec-ch-ua"],
+            "sec-ch-ua-mobile": self._headers["sec-ch-ua-mobile"],
+            "sec-ch-ua-platform": self._headers["sec-ch-ua-platform"],
         }
         response = session.post(url, headers=headers, data=f"formhash={formhash}", timeout=20)
         if response.status_code != 200:
-            return False, f"签到请求失败，状态码: {response.status_code}"
+            hint = ""
+            if response.status_code in self._cf_status_codes:
+                hint = " / 52x from edge, check cf_clearance cookie and container outbound path"
+            logger.warning(
+                f"[enshan] checkin response status={response.status_code}: "
+                f"{self._response_debug_summary(response)} body={self._response_body_preview(response)}"
+            )
+            return False, f"checkin request failed, status: {response.status_code}{hint}"
         try:
             data = response.json() if response.text else {}
         except Exception:
-            return False, "签到响应不是 JSON"
+            logger.warning(
+                f"[enshan] checkin response not json: "
+                f"{self._response_debug_summary(response)} body={self._response_body_preview(response)}"
+            )
+            return False, "checkin response is not JSON"
 
         message = str(data.get("message", "")).strip()
         if data.get("success") is True:
-            return True, message or "签到成功"
+            return True, message or "checkin success"
         if "成功" in message or "已签到" in message or "已经签到" in message:
-            return True, message or "今日已签到"
-        return False, message or "签到失败"
+            return True, message or "already checked in"
+        return False, message or "checkin failed"
+
 
     def _run_one(self, cookie: str, index: int) -> Tuple[bool, str]:
         session = self._build_session(cookie)
-        ok, login_msg, formhash = self._daily_login(session)
+        ok, login_msg, formhash = self._daily_login(session, cookie)
         if not ok or not formhash:
             return False, f"账号{index}: {login_msg}"
         ok, checkin_msg = self._perform_checkin(session, cookie, formhash)
