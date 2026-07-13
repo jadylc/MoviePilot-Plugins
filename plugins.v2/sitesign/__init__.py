@@ -29,7 +29,7 @@ from ruamel.yaml import CommentedMap
 
 class SitesSign(_PluginBase):
     # 插件名称
-    plugin_name = "站点自动签到"
+    plugin_name = "PT站点自动签到"
     # 插件描述
     plugin_desc = "自动模拟登录、签到站点。"
     # 插件图标
