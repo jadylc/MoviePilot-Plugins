@@ -27,7 +27,7 @@ from apscheduler.triggers.cron import CronTrigger
 from ruamel.yaml import CommentedMap
 
 
-class SitesSign(_PluginBase):
+class SiteSign(_PluginBase):
     # 插件名称
     plugin_name = "PT站点自动签到"
     # 插件描述

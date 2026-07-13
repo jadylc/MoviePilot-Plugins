@@ -44,7 +44,7 @@
       "v1.0.0": "MoviePilot V2 恩山论坛签到插件"
     }
   },
-  "SitesSign": {
+  "SiteSign": {
     "name": "PT站点自动签到",
     "description": "自动模拟登录、签到站点。",
     "labels": "站点,签到",
