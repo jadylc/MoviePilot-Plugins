@@ -12,7 +12,7 @@ class HaiDan(_ISiteSigninHandler):
     海胆签到
     """
     # 匹配的站点Url，每一个实现类都需要设置为自己的站点Url
-    site_url = "haidan.video"
+    site_url = "haidan.cc"
 
     # 签到成功
     _succeed_regex = ['(?<=value=")已经打卡(?=")']
@@ -41,7 +41,7 @@ class HaiDan(_ISiteSigninHandler):
 
         # 签到
         # 签到页会重定向到index.php，由于302重定向特性，导致index.php没有携带cookie
-        self.get_page_source(url='https://www.haidan.video/signin.php',
+        self.get_page_source(url='https://www.haidan.cc/signin.php',
                              cookie=site_cookie,
                              ua=ua,
                              proxy=proxy,
@@ -49,7 +49,7 @@ class HaiDan(_ISiteSigninHandler):
                              timeout=timeout)
 
         # 重新携带cookie获取index.php查看签到结果
-        html_text = self.get_page_source(url='https://www.haidan.video/index.php',
+        html_text = self.get_page_source(url='https://www.haidan.cc/index.php',
                                          cookie=site_cookie,
                                          ua=ua,
                                          proxy=proxy,
