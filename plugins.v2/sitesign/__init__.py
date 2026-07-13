@@ -32,10 +32,10 @@ class SiteSign(_PluginBase):
     plugin_name = "PT站点自动签到"
     # 插件描述
     plugin_desc = "自动模拟登录、签到站点。"
-    # 插件图标
+    # 插件图标2
     plugin_icon = "signin.png"
     # 插件版本
-    plugin_version = "1.0.0"
+    plugin_version = "1.0.1"
     # 插件作者
     plugin_author = "Jadylc"
     # 作者主页
@@ -65,6 +65,7 @@ class SiteSign(_PluginBase):
     _start_time: int = None
     _end_time: int = None
     _auto_cf: int = 0
+    _flaresolverr_url: str = ""
 
     def init_plugin(self, config: dict = None):
 
@@ -82,6 +83,7 @@ class SiteSign(_PluginBase):
             self._login_sites = config.get("login_sites") or []
             self._retry_keyword = config.get("retry_keyword")
             self._auto_cf = config.get("auto_cf")
+            self._flaresolverr_url = config.get("flaresolverr_url") or ""
             self._clean = config.get("clean")
 
             # 过滤掉已删除的站点
@@ -134,6 +136,7 @@ class SiteSign(_PluginBase):
                 "retry_keyword": self._retry_keyword,
                 "auto_cf": self._auto_cf,
                 "clean": self._clean,
+                "flaresolverr_url": self._flaresolverr_url,
             }
         )
 
@@ -413,6 +416,27 @@ class SiteSign(_PluginBase):
                         'content': [
                             {
                                 'component': 'VCol',
+                                'props': {
+                                    'cols': 12,
+                                },
+                                'content': [
+                                    {
+                                        'component': 'VTextField',
+                                        'props': {
+                                            'model': 'flaresolverr_url',
+                                            'label': 'FlareSolverr 地址',
+                                            'placeholder': 'http://172.16.41.221:8191（留空不启用）'
+                                        }
+                                    }
+                                ]
+                            }
+                        ]
+                    },
+                    {
+                        'component': 'VRow',
+                        'content': [
+                            {
+                                'component': 'VCol',
                                 'content': [
                                     {
                                         'component': 'VSelect',
@@ -506,6 +530,27 @@ class SiteSign(_PluginBase):
                                     {
                                         'component': 'VAlert',
                                         'props': {
+                                            'type': 'info',
+                                            'variant': 'tonal',
+                                            'text': 'FlareSolverr：填写服务地址后，签到/登录遇到 Cloudflare 盾时自动调用其过盾并用返回的 cookie 与 UA 重试；留空则维持原行为（被盾直接失败）。'
+                                        }
+                                    }
+                                ]
+                            }
+                        ]
+                    },
+                    {
+                        'component': 'VRow',
+                        'content': [
+                            {
+                                'component': 'VCol',
+                                'props': {
+                                    'cols': 12,
+                                },
+                                'content': [
+                                    {
+                                        'component': 'VAlert',
+                                        'props': {
                                             'type': 'warning',
                                             'variant': 'tonal',
                                             'text': '不是所有的站点都会把程序自动登录/签到定义为用户活跃（比如馒头），提示签到/登录成功仍然存在掉号风险！请结合站点公告说明自行把握。'
@@ -527,7 +572,8 @@ class SiteSign(_PluginBase):
             "queue_cnt": 5,
             "sign_sites": [],
             "login_sites": [],
-            "retry_keyword": "错误|失败"
+            "retry_keyword": "错误|失败",
+            "flaresolverr_url": ""
         }
 
     def __custom_sites(self) -> List[Any]:
@@ -1652,8 +1698,7 @@ class SiteSign(_PluginBase):
             SiteOper().fail(domain)
         return site_info.get("name"), message
 
-    @staticmethod
-    def __signin_base(site_info: CommentedMap) -> Tuple[bool, str]:
+    def __signin_base(self, site_info: CommentedMap) -> Tuple[bool, str]:
         """
         通用签到处理
         :param site_info: 站点信息
@@ -1688,6 +1733,14 @@ class SiteSign(_PluginBase):
                                                                  timeout=timeout)
                 if not SiteUtils.is_logged_in(page_source):
                     if under_challenge(page_source):
+                        # Playwright 仍未过盾，尝试 FlareSolverr 兜底
+                        state, message = self.__flaresolverr_signin(site=site,
+                                                                    url=checkin_url,
+                                                                    site_cookie=site_cookie,
+                                                                    proxies=proxies,
+                                                                    timeout=timeout)
+                        if state is not None:
+                            return state, message
                         return False, f"无法通过Cloudflare！"
                     return False, f"仿真登录失败，Cookie已失效！"
                 else:
@@ -1713,7 +1766,15 @@ class SiteSign(_PluginBase):
                 if res and res.status_code in [200, 500, 403]:
                     if not SiteUtils.is_logged_in(res.text):
                         if under_challenge(res.text):
-                            msg = "站点被Cloudflare防护，请打开站点浏览器仿真"
+                            # 被 Cloudflare 拦截，尝试 FlareSolverr 兜底
+                            state, message = self.__flaresolverr_signin(site=site,
+                                                                        url=checkin_url,
+                                                                        site_cookie=site_cookie,
+                                                                        proxies=proxies,
+                                                                        timeout=timeout)
+                            if state is not None:
+                                return state, message
+                            msg = "站点被Cloudflare防护，请打开站点浏览器仿真或配置FlareSolverr"
                         elif res.status_code == 200:
                             msg = "Cookie已失效"
                         else:
@@ -1758,8 +1819,7 @@ class SiteSign(_PluginBase):
             SiteOper().fail(domain)
         return site_info.get("name"), message
 
-    @staticmethod
-    def __login_base(site_info: CommentedMap) -> Tuple[bool, str]:
+    def __login_base(self, site_info: CommentedMap) -> Tuple[bool, str]:
         """
         模拟登录通用处理
         :param site_info: 站点信息
@@ -1791,6 +1851,14 @@ class SiteSign(_PluginBase):
                                                                  timeout=timeout)
                 if not SiteUtils.is_logged_in(page_source):
                     if under_challenge(page_source):
+                        # Playwright 仍未过盾，尝试 FlareSolverr 兜底
+                        state, message = self.__flaresolverr_login(site=site,
+                                                                   url=site_url,
+                                                                   site_cookie=site_cookie,
+                                                                   proxies=proxies,
+                                                                   timeout=timeout)
+                        if state is not None:
+                            return state, message
                         return False, f"无法通过Cloudflare！"
                     return False, f"仿真登录失败，Cookie已失效！"
                 else:
@@ -1805,7 +1873,15 @@ class SiteSign(_PluginBase):
                 if res and res.status_code in [200, 500, 403]:
                     if not SiteUtils.is_logged_in(res.text):
                         if under_challenge(res.text):
-                            msg = "站点被Cloudflare防护，请打开站点浏览器仿真"
+                            # 被 Cloudflare 拦截，尝试 FlareSolverr 兜底
+                            state, message = self.__flaresolverr_login(site=site,
+                                                                       url=site_url,
+                                                                       site_cookie=site_cookie,
+                                                                       proxies=proxies,
+                                                                       timeout=timeout)
+                            if state is not None:
+                                return state, message
+                            msg = "站点被Cloudflare防护，请打开站点浏览器仿真或配置FlareSolverr"
                         elif res.status_code == 200:
                             msg = "Cookie已失效"
                         else:
@@ -1825,6 +1901,128 @@ class SiteSign(_PluginBase):
             logger.warn("%s 模拟登录失败：%s" % (site, str(e)))
             traceback.print_exc()
             return False, f"模拟登录失败：{str(e)}！"
+
+    def __flaresolverr_get(self, url: str, timeout: int = None) -> Optional[dict]:
+        """
+        调用 FlareSolverr 过 Cloudflare 盾
+        :param url: 目标地址
+        :param timeout: 超时时间（秒）
+        :return: FlareSolverr 的 solution 字典（含 response/cookies/userAgent），失败返回 None
+        """
+        if not self._flaresolverr_url:
+            return None
+        fs = str(self._flaresolverr_url).rstrip("/")
+        max_timeout = int((timeout or 60) * 1000)
+        body = {
+            "cmd": "request.get",
+            "url": url,
+            "maxTimeout": max_timeout,
+        }
+        try:
+            res = RequestUtils(
+                content_type="application/json",
+                timeout=(timeout or 60) + 60
+            ).post_res(url=f"{fs}/v1", json=body)
+            if not res:
+                logger.warn(f"FlareSolverr 无响应：{fs}")
+                return None
+            if res.status_code != 200:
+                logger.warn(f"FlareSolverr 调用失败，状态码：{res.status_code}")
+                return None
+            data = res.json()
+            if data.get("status") != "ok":
+                logger.warn(f"FlareSolverr 未过盾：{data.get('message')}")
+                return None
+            solution = data.get("solution") or {}
+            if not solution.get("response"):
+                logger.warn("FlareSolverr 返回内容为空")
+                return None
+            return solution
+        except Exception as e:
+            logger.warn(f"FlareSolverr 调用异常：{str(e)}")
+            return None
+
+    @staticmethod
+    def __merge_cf_cookie(site_cookie: str, solution: dict) -> str:
+        """
+        把 FlareSolverr 过盾得到的 cf_clearance/__cf_bm 合并进站点原 Cookie
+        """
+        cf_cookies = {}
+        for c in (solution.get("cookies") or []):
+            name = c.get("name")
+            if name in ("cf_clearance", "__cf_bm"):
+                cf_cookies[name] = c.get("value")
+        if not cf_cookies:
+            return site_cookie
+        # 去掉原 Cookie 中的同名项，避免重复
+        kept = []
+        for part in str(site_cookie or "").split(";"):
+            part = part.strip()
+            if not part:
+                continue
+            key = part.split("=", 1)[0].strip()
+            if key in cf_cookies:
+                continue
+            kept.append(part)
+        for name, value in cf_cookies.items():
+            kept.append(f"{name}={value}")
+        return "; ".join(kept)
+
+    def __flaresolverr_signin(self, site: str, url: str, site_cookie: str,
+                              proxies: Any, timeout: int) -> Tuple[Optional[bool], str]:
+        """
+        用 FlareSolverr 过盾后重试签到。
+        :return: (None, "") 表示未启用/过盾失败，交回原逻辑；(True/False, msg) 表示已处理。
+        """
+        solution = self.__flaresolverr_get(url=url, timeout=timeout)
+        if not solution:
+            return None, ""
+        logger.info(f"{site} 通过 FlareSolverr 过盾成功，重试签到...")
+        merged_cookie = self.__merge_cf_cookie(site_cookie, solution)
+        fs_ua = solution.get("userAgent")
+        # cf_clearance 与 UA 强绑定，必须用 FlareSolverr 的 UA 重试
+        res = RequestUtils(cookies=merged_cookie,
+                           ua=fs_ua,
+                           proxies=proxies,
+                           timeout=timeout
+                           ).get_res(url=url)
+        page_source = res.text if res else solution.get("response")
+        if not page_source:
+            return False, "FlareSolverr过盾成功但无法获取页面！"
+        if under_challenge(page_source):
+            return False, "FlareSolverr过盾后仍被Cloudflare拦截！"
+        if not SiteUtils.is_logged_in(page_source):
+            return False, "FlareSolverr过盾成功但Cookie已失效！"
+        if re.search(r'已签|签到已得', page_source, re.IGNORECASE) \
+                or SiteUtils.is_checkin(page_source):
+            return True, "FlareSolverr过盾签到成功"
+        return True, "FlareSolverr过盾签到成功"
+
+    def __flaresolverr_login(self, site: str, url: str, site_cookie: str,
+                             proxies: Any, timeout: int) -> Tuple[Optional[bool], str]:
+        """
+        用 FlareSolverr 过盾后重试模拟登录。
+        :return: (None, "") 表示未启用/过盾失败，交回原逻辑；(True/False, msg) 表示已处理。
+        """
+        solution = self.__flaresolverr_get(url=url, timeout=timeout)
+        if not solution:
+            return None, ""
+        logger.info(f"{site} 通过 FlareSolverr 过盾成功，重试模拟登录...")
+        merged_cookie = self.__merge_cf_cookie(site_cookie, solution)
+        fs_ua = solution.get("userAgent")
+        res = RequestUtils(cookies=merged_cookie,
+                           ua=fs_ua,
+                           proxies=proxies,
+                           timeout=timeout
+                           ).get_res(url=url)
+        page_source = res.text if res else solution.get("response")
+        if not page_source:
+            return False, "FlareSolverr过盾成功但无法获取页面！"
+        if under_challenge(page_source):
+            return False, "FlareSolverr过盾后仍被Cloudflare拦截！"
+        if not SiteUtils.is_logged_in(page_source):
+            return False, "FlareSolverr过盾成功但Cookie已失效！"
+        return True, "FlareSolverr过盾模拟登录成功"
 
     def stop_service(self):
         """
