@@ -35,7 +35,7 @@ class SiteSign(_PluginBase):
     # 插件图标2
     plugin_icon = "signin.png"
     # 插件版本
-    plugin_version = "1.0.1"
+    plugin_version = "1.0.2"
     # 插件作者
     plugin_author = "Jadylc"
     # 作者主页
@@ -439,10 +439,11 @@ class SiteSign(_PluginBase):
                                 'component': 'VCol',
                                 'content': [
                                     {
-                                        'component': 'VSelect',
+                                        'component': 'VAutocomplete',
                                         'props': {
                                             'chips': True,
                                             'multiple': True,
+                                            'clearable': True,
                                             'model': 'sign_sites',
                                             'label': '签到站点',
                                             'items': site_options
@@ -459,10 +460,11 @@ class SiteSign(_PluginBase):
                                 'component': 'VCol',
                                 'content': [
                                     {
-                                        'component': 'VSelect',
+                                        'component': 'VAutocomplete',
                                         'props': {
                                             'chips': True,
                                             'multiple': True,
+                                            'clearable': True,
                                             'model': 'login_sites',
                                             'label': '登录站点',
                                             'items': site_options

@@ -48,11 +48,12 @@
     "name": "PT站点自动签到",
     "description": "自动模拟登录、签到站点。",
     "labels": "站点,签到",
-    "version": "1.0.1",
+    "version": "1.0.2",
     "icon": "signin.png",
     "author": "Jadylc",
     "level": 2,
     "history": {
+      "v1.0.2": "签到/登录站点下拉框改为可检索（VAutocomplete）",
       "v1.0.1": "新增 FlareSolverr 支持：签到/登录遇 Cloudflare 盾时自动过盾重试",
       "v1.0.0": "从官方 autosignin 移植并改名为 SiteSign（避免与官方插件重名）"
     }
