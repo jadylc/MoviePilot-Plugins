@@ -17,6 +17,7 @@ from app.helper.module import ModuleHelper
 from app.helper.sites import SitesHelper
 from app.log import logger
 from app.plugins import _PluginBase
+from app.plugins.sitesign.sites import _ISiteSigninHandler
 from app.schemas.types import EventType, NotificationType
 from app.utils.http import RequestUtils
 from app.utils.site import SiteUtils
@@ -35,7 +36,7 @@ class SiteSign(_PluginBase):
     # 插件图标2
     plugin_icon = "signin.png"
     # 插件版本
-    plugin_version = "1.0.7"
+    plugin_version = "1.0.9"
     # 插件作者
     plugin_author = "Jadylc"
     # 作者主页
@@ -534,7 +535,7 @@ class SiteSign(_PluginBase):
                                         'props': {
                                             'type': 'info',
                                             'variant': 'tonal',
-                                            'text': 'FlareSolverr：填写服务地址后，签到/登录遇到 Cloudflare 盾时自动调用其过盾并用返回的 cookie 与 UA 重试；留空则维持原行为（被盾直接失败）。'
+                                            'text': 'FlareSolverr：填写服务地址后用于处理拦截整个页面的 Cloudflare 盾，并用返回的 cookie 与 UA 继续访问；签到页内嵌 Turnstile 会自动由浏览器仿真在同一会话内完成。'
                                         }
                                     }
                                 ]
@@ -1680,12 +1681,6 @@ class SiteSign(_PluginBase):
         """
         签到一个站点
         """
-        # 注入 FlareSolverr 地址给专属签到模块（如我堡 Turnstile 验证）
-        if self._flaresolverr_url:
-            try:
-                site_info["flaresolverr_url"] = self._flaresolverr_url
-            except Exception:
-                pass
         site_module = self.__build_class(site_info.get("url"))
         # 开始记时
         start_time = datetime.now()
@@ -1739,6 +1734,15 @@ class SiteSign(_PluginBase):
                                                                  ua=ua,
                                                                  proxies=proxy_server,
                                                                  timeout=timeout)
+                if _ISiteSigninHandler.has_embedded_turnstile(page_source):
+                    return _ISiteSigninHandler.signin_embedded_turnstile(
+                        site=site,
+                        url=checkin_url,
+                        cookie=site_cookie,
+                        ua=ua,
+                        proxies=proxy_server,
+                        timeout=timeout
+                    )
                 if not SiteUtils.is_logged_in(page_source):
                     if under_challenge(page_source):
                         # Playwright 仍未过盾，尝试 FlareSolverr 兜底
@@ -1771,7 +1775,16 @@ class SiteSign(_PluginBase):
                                        timeout=timeout
                                        ).get_res(url=site_url)
                 # 判断登录状态
-                if res and res.status_code in [200, 500, 403]:
+                if res is not None and res.status_code in [200, 500, 403]:
+                    if _ISiteSigninHandler.has_embedded_turnstile(res.text):
+                        return _ISiteSigninHandler.signin_embedded_turnstile(
+                            site=site,
+                            url=checkin_url,
+                            cookie=site_cookie,
+                            ua=ua,
+                            proxies=proxy_server,
+                            timeout=timeout
+                        )
                     if not SiteUtils.is_logged_in(res.text):
                         if under_challenge(res.text):
                             # 被 Cloudflare 拦截，尝试 FlareSolverr 兜底
