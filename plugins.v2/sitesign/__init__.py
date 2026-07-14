@@ -35,7 +35,7 @@ class SiteSign(_PluginBase):
     # 插件图标2
     plugin_icon = "signin.png"
     # 插件版本
-    plugin_version = "1.0.3"
+    plugin_version = "1.0.4"
     # 插件作者
     plugin_author = "Jadylc"
     # 作者主页
@@ -1680,6 +1680,12 @@ class SiteSign(_PluginBase):
         """
         签到一个站点
         """
+        # 注入 FlareSolverr 地址给专属签到模块（如我堡 Turnstile 验证）
+        if self._flaresolverr_url:
+            try:
+                site_info["flaresolverr_url"] = self._flaresolverr_url
+            except Exception:
+                pass
         site_module = self.__build_class(site_info.get("url"))
         # 开始记时
         start_time = datetime.now()
@@ -1784,8 +1790,21 @@ class SiteSign(_PluginBase):
                         logger.warn(f"{site} 签到失败，{msg}")
                         return False, f"签到失败，{msg}！"
                     else:
-                        logger.info(f"{site} 签到成功")
-                        return True, f"签到成功"
+                        # 诊断：登录态判定为真，但未必真签到。录下页面关键特征
+                        _txt = res.text or ""
+                        _keys = {k: (k.lower() in _txt.lower()) for k in [
+                            "签到", "已签到", "签到了", "attendance", "turnstile",
+                            "challenges.cloudflare", "cf-chl", "just a moment", "立即签到", "签到中"]}
+                        logger.info(f"{site} 登录态=True，进入签到判定诊断："
+                                    f"len={len(_txt)} keys={_keys}")
+                        logger.info(f"{site} 页面前800字：{_txt[:800]}")
+                        # 严格判定：只有明确含"已签到/签到已得"才算真签到，否则如实报未确认
+                        hit = bool(re.search(r'已签|签到已得', _txt, re.IGNORECASE)) or SiteUtils.is_checkin(_txt)
+                        if hit:
+                            logger.info(f"{site} 签到成功（命中签到标志）")
+                            return True, f"签到成功"
+                        logger.warn(f"{site} 进入签到页但未确认签到结果（页面无'已签到'标志，可能有验证待过）")
+                        return False, f"进入签到页但未确认签到结果（可能有验证待过）"
                 elif res is not None:
                     logger.warn(f"{site} 签到失败，状态码：{res.status_code}")
                     return False, f"签到失败，状态码：{res.status_code}！"
