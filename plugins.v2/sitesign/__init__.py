@@ -35,7 +35,7 @@ class SiteSign(_PluginBase):
     # 插件图标2
     plugin_icon = "signin.png"
     # 插件版本
-    plugin_version = "1.0.2"
+    plugin_version = "1.0.3"
     # 插件作者
     plugin_author = "Jadylc"
     # 作者主页
@@ -1979,6 +1979,16 @@ class SiteSign(_PluginBase):
         solution = self.__flaresolverr_get(url=url, timeout=timeout)
         if not solution:
             return None, ""
+        # 诊断：FlareSolverr 返回了什么
+        sol_url = solution.get("url")
+        sol_status = solution.get("status")
+        sol_cookies = solution.get("cookies") or []
+        sol_response = solution.get("response") or ""
+        logger.info(f"{site} FlareSolverr 返回：status={sol_status} url={sol_url} "
+                    f"cookies={[c.get('name') for c in sol_cookies]} "
+                    f"resp_len={len(sol_response)} "
+                    f"resp含'签'={'签' in sol_response} "
+                    f"resp含'attendance'={'attendance' in sol_response.lower()}")
         logger.info(f"{site} 通过 FlareSolverr 过盾成功，重试签到...")
         merged_cookie = self.__merge_cf_cookie(site_cookie, solution)
         fs_ua = solution.get("userAgent")
@@ -1989,16 +1999,28 @@ class SiteSign(_PluginBase):
                            timeout=timeout
                            ).get_res(url=url)
         page_source = res.text if res else solution.get("response")
+        # 诊断：重试请求拿到了什么
+        logger.info(f"{site} 过盾重试：res={res is not None} "
+                    f"status={res.status_code if res else None} "
+                    f"page来源={'RequestUtils' if res else 'FlareSolverr.solution'} "
+                    f"page_len={len(page_source or '')} "
+                    f"is_logged_in={SiteUtils.is_logged_in(page_source or '') if page_source else None} "
+                    f"被盾={under_challenge(page_source or '') if page_source else None}")
         if not page_source:
             return False, "FlareSolverr过盾成功但无法获取页面！"
         if under_challenge(page_source):
             return False, "FlareSolverr过盾后仍被Cloudflare拦截！"
         if not SiteUtils.is_logged_in(page_source):
             return False, "FlareSolverr过盾成功但Cookie已失效！"
-        if re.search(r'已签|签到已得', page_source, re.IGNORECASE) \
-                or SiteUtils.is_checkin(page_source):
+        # 诊断：最终判定命中哪个分支
+        hit_kw = bool(re.search(r'已签|签到已得', page_source, re.IGNORECASE))
+        hit_checkin = SiteUtils.is_checkin(page_source)
+        logger.info(f"{site} 签到判定：关键字命中={hit_kw} is_checkin={hit_checkin}")
+        if hit_kw or hit_checkin:
             return True, "FlareSolverr过盾签到成功"
-        return True, "FlareSolverr过盾签到成功"
+        # 没匹配到明确签到标志，如实报告，不再无条件报成功
+        logger.warn(f"{site} 过盾成功但未确认签到结果，页面无'已签'标志")
+        return False, "FlareSolverr过盾成功但未确认签到结果（页面无签到标志）"
 
     def __flaresolverr_login(self, site: str, url: str, site_cookie: str,
                              proxies: Any, timeout: int) -> Tuple[Optional[bool], str]:
