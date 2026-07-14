@@ -35,7 +35,7 @@ class SiteSign(_PluginBase):
     # 插件图标2
     plugin_icon = "signin.png"
     # 插件版本
-    plugin_version = "1.0.5"
+    plugin_version = "1.0.6"
     # 插件作者
     plugin_author = "Jadylc"
     # 作者主页

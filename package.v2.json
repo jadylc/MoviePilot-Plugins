@@ -48,11 +48,12 @@
     "name": "PT站点自动签到",
     "description": "自动模拟登录、签到站点。",
     "labels": "站点,签到",
-    "version": "1.0.5",
+    "version": "1.0.6",
     "icon": "signin.png",
     "author": "Jadylc",
     "level": 2,
     "history": {
+      "v1.0.6": "我堡(ourbits)过盾 maxTimeout 设 60s 下限，避免解挑战被站点 HTTP 超时憋断（'path' 报错），并细化无响应日志",
       "v1.0.5": "修复我堡(ourbits)签到误判已签到：说明文案含「连续签到」被误命中，改为先判待验证页再判已签到",
       "v1.0.4": "新增我堡(ourbits)专属签到：向 FlareSolverr 注入登录 Cookie 过 Turnstile，修复 Py3.11 加载报错与中文编码",
       "v1.0.3": "修复 FlareSolverr 过盾签到假成功：无签到标志不再误报成功，并增加诊断日志",

@@ -183,8 +183,11 @@ class OurBits(_ISiteSigninHandler):
         - 等待流程完成后拿回签到后的页面，判定是否成功
         """
         fs = str(flaresolverr_url).rstrip("/")
-        # FlareSolverr 需要足够时长等 Turnstile 加载 + 过验证 + 自动 submit
-        max_timeout = int((timeout or 60) * 1000)
+        # FlareSolverr 需要足够时长等 Turnstile 加载 + 过验证 + 自动 submit。
+        # 站点 HTTP timeout（可能仅十几秒）远不够解挑战，这里单独设 60s 下限，
+        # 否则 FlareSolverr 会因超时中途抛错（如 "Error solving the challenge. 'path'"）。
+        fs_timeout = max(int(timeout or 60), 60)
+        max_timeout = fs_timeout * 1000
         body = {
             "cmd": "request.get",
             "url": url,
@@ -192,12 +195,16 @@ class OurBits(_ISiteSigninHandler):
             "cookies": self._cookie_to_list(site_cookie, url),
         }
         try:
+            # HTTP 读超时要比 maxTimeout 更长，留出 FlareSolverr 处理与网络往返余量
             res = RequestUtils(content_type="application/json",
-                               timeout=(timeout or 60) + 60
+                               timeout=fs_timeout + 30
                                ).post_res(url=f"{fs}/v1", json=body)
             if not res:
-                logger.warn(f"{site} FlareSolverr 无响应：{fs}")
-                return False, "FlareSolverr 无响应"
+                # post_res 对非 2xx（如 FlareSolverr 解挑战失败返回的 500）也会返回 None，
+                # 故此处可能是连不上、读超时，或 FlareSolverr 内部报错——需结合 FlareSolverr 日志判断
+                logger.warn(f"{site} FlareSolverr 无有效响应（连不上/读超时/服务内部报错），"
+                            f"请查看 FlareSolverr 容器日志：{fs}")
+                return False, "FlareSolverr 无有效响应（详见 FlareSolverr 日志）"
             if res.status_code != 200:
                 logger.warn(f"{site} FlareSolverr 调用失败，状态码：{res.status_code}")
                 return False, f"FlareSolverr 调用失败，状态码：{res.status_code}"
