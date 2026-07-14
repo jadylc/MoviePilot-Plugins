@@ -78,24 +78,25 @@ class OurBits(_ISiteSigninHandler):
                            ).get_res(url=checkin_url)
         html_text = self._decode(res)
 
-        # 已签到
-        if self.sign_in_result(html_res=html_text, regexs=self._succeed_regex):
-            logger.info(f"{site} 今日已签到")
-            return True, "今日已签到"
-
         # Cookie 失效
         if html_text and "login.php" in html_text:
             logger.warn(f"{site} Cookie已失效")
             return False, "签到失败，Cookie已失效"
 
-        # 没签到成功：判定是否为 Turnstile 待过页
+        # 是否为 Turnstile 待验证页（未签到）。
+        # 注意：签到页说明文案里含「连续签到 X 天后…」这类字样，会误命中签到成功关键字，
+        # 所以必须先判定是否待验证页——是则直接走过盾，不能靠关键字判已签到。
         need_turnstile = self._has_turnstile(html_text)
         has_form = ('form id="attendance"' in html_text) or ('form#attendance' in html_text)
         logger.info(f"{site} 签到页诊断：len={len(html_text)} "
                     f"含turnstile={need_turnstile} 含attendance_form={has_form}")
 
         if not need_turnstile:
-            # 不是已签到、也不是 Turnstile 待过页 → 状态不明，如实报告
+            # 非待验证页：此时页面无 Turnstile 加载提示，关键字命中才可信 → 判是否已签到
+            if self.sign_in_result(html_res=html_text, regexs=self._succeed_regex):
+                logger.info(f"{site} 今日已签到")
+                return True, "今日已签到"
+            # 既非待验证页、也无签到成功标志 → 状态不明，如实报告
             logger.warn(f"{site} 进入签到页但未识别签到状态，无法确认是否签到成功")
             return False, "进入签到页但未确认签到结果"
 
@@ -140,10 +141,13 @@ class OurBits(_ISiteSigninHandler):
     @staticmethod
     def _has_turnstile(html: str) -> bool:
         """
-        判定页面是否存在待处理的 Cloudflare Turnstile（attendance form 未提交）
+        判定页面是否为 Turnstile 待验证页（attendance form 未提交）
         """
         if not html:
             return False
+        # 站点待验证页的中文提示，最明确的未签到信号
+        if "请耐心等待签到验证程序加载" in html:
+            return True
         low = html.lower()
         if "cf-turnstile" not in low:
             return False
