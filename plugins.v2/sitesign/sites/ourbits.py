@@ -158,7 +158,10 @@ class OurBits(_ISiteSigninHandler):
     def _cookie_to_list(site_cookie: str, url: str) -> List[dict]:
         """
         把 "k=v; k2=v2" 形式的站点 Cookie 转成 FlareSolverr 需要的 cookies 数组，
-        并附上目标域名，供其在新浏览器会话中带上登录态访问
+        并附上目标域名，供其在新浏览器会话中带上登录态访问。
+        注意：nodriver 版 FlareSolverr(21hsmw) 构造 CookieParam 时强制读 cookie["path"]，
+        缺失会抛 KeyError('path') 并以 "Error solving the challenge. 'path'" 报 500，
+        故每个 cookie 必须补上 path。
         """
         domain = urlparse(url).hostname or ""
         cookies = []
@@ -171,6 +174,7 @@ class OurBits(_ISiteSigninHandler):
                 "name": name.strip(),
                 "value": value.strip(),
                 "domain": domain,
+                "path": "/",
             })
         return cookies
 
