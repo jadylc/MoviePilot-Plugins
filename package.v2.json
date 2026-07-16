@@ -48,11 +48,12 @@
     "name": "PT站点自动签到",
     "description": "自动模拟登录、签到站点。",
     "labels": "站点,签到",
-    "version": "1.0.9",
+    "version": "1.0.10",
     "icon": "signin.png",
     "author": "Jadylc",
     "level": 2,
     "history": {
+      "v1.0.10": "修复内嵌Turnstile页面因等待networkidle导致未执行验证，并确保OpenCD本地OCR运行文件随插件发布",
       "v1.0.9": "OCR签到改用插件本地ddddocr识别，移除对已停服官方OCR接口的依赖，并补齐验证码下载代理、Referer与超时参数",
       "v1.0.8": "新增通用内嵌 Turnstile 签到处理：真实浏览器在同一页面会话点击验证、携 token 提交 attendance 表单，并移除我堡专属实现",
       "v1.0.7": "修复我堡(ourbits)过盾真因：nodriver 版 FlareSolverr 构造 cookie 时强制读 path，缺失致 KeyError('path') 报 500，为每个注入 cookie 补 path=/",

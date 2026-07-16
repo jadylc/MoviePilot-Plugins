@@ -36,7 +36,7 @@ class SiteSign(_PluginBase):
     # 插件图标2
     plugin_icon = "signin.png"
     # 插件版本
-    plugin_version = "1.0.9"
+    plugin_version = "1.0.10"
     # 插件作者
     plugin_author = "Jadylc"
     # 作者主页
@@ -1729,6 +1729,23 @@ class SiteSign(_PluginBase):
                 checkin_url = urljoin(site_url, "attendance.php")
             logger.info(f"开始站点签到：{site}，地址：{checkin_url}...")
             if render:
+                probe_source = _ISiteSigninHandler.get_page_source(
+                    url=checkin_url,
+                    cookie=site_cookie,
+                    ua=ua,
+                    proxy=site_info.get("proxy"),
+                    render=False,
+                    timeout=timeout
+                )
+                if _ISiteSigninHandler.has_embedded_turnstile(probe_source):
+                    return _ISiteSigninHandler.signin_embedded_turnstile(
+                        site=site,
+                        url=checkin_url,
+                        cookie=site_cookie,
+                        ua=ua,
+                        proxies=proxy_server,
+                        timeout=timeout
+                    )
                 page_source = PlaywrightHelper().get_page_source(url=checkin_url,
                                                                  cookies=site_cookie,
                                                                  ua=ua,

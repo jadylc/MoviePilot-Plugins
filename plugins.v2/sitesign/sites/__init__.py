@@ -2,7 +2,9 @@
 import re
 import time
 from abc import ABCMeta, abstractmethod
+from http.cookies import SimpleCookie
 from typing import Tuple
+from urllib.parse import urlparse
 
 import chardet
 from ruamel.yaml import CommentedMap
@@ -114,6 +116,8 @@ class _ISiteSigninHandler(metaclass=ABCMeta):
         if not html:
             return False
         low = html.lower()
+        if "请耐心等待签到验证程序加载" in html:
+            return "attendance" in low
         if "cf-turnstile" not in low:
             return False
         attendance_form = re.search(
@@ -137,26 +141,79 @@ class _ISiteSigninHandler(metaclass=ABCMeta):
                                   proxies, timeout: int) -> Tuple[bool, str]:
         """在同一个真实浏览器页面中完成内嵌 Turnstile 与签到表单提交。"""
         browser_timeout = max(int(timeout or 60), 60)
-
-        def callback(page):
-            return cls._drive_turnstile_page(page=page, site=site, timeout=browser_timeout)
-
+        context = None
+        page = None
         try:
-            result = PlaywrightHelper().action(url=url,
-                                               callback=callback,
-                                               cookies=cookie,
-                                               ua=ua,
-                                               proxies=proxies,
-                                               headless=False,
-                                               timeout=browser_timeout)
+            from cloakbrowser import launch_context
+
+            context = launch_context(
+                headless=False,
+                proxy=proxies,
+                user_agent=ua,
+                humanize=getattr(settings, "CLOAKBROWSER_HUMANIZE", True),
+                human_preset=getattr(settings, "CLOAKBROWSER_HUMAN_PRESET", "default")
+            )
+            browser_cookies = cls._build_browser_cookies(url=url, cookie=cookie)
+            if browser_cookies:
+                context.add_cookies(browser_cookies)
+
+            page = context.new_page()
+            if hasattr(page, "set_default_timeout"):
+                page.set_default_timeout(browser_timeout * 1000)
+            try:
+                page.goto(url,
+                          wait_until="domcontentloaded",
+                          timeout=browser_timeout * 1000)
+            except Exception as e:
+                # 某些 Turnstile 资源会持续挂起；页面已打开时仍继续驱动控件。
+                logger.warn(f"{site} 内嵌 Turnstile 页面导航未完全结束，继续尝试验证：{str(e)}")
+
+            return cls._drive_turnstile_page(page=page,
+                                             site=site,
+                                             timeout=browser_timeout)
         except Exception as e:
             logger.warn(f"{site} 内嵌 Turnstile 浏览器仿真异常：{str(e)}")
             return False, f"浏览器仿真异常：{str(e)}"
-        if (isinstance(result, tuple) and len(result) == 2
-                and isinstance(result[0], bool)):
-            return result
-        logger.warn(f"{site} 浏览器仿真未返回内嵌 Turnstile 签到结果")
-        return False, "浏览器仿真未完成内嵌 Turnstile 签到"
+        finally:
+            if page:
+                try:
+                    page.close()
+                except Exception:
+                    pass
+            if context:
+                try:
+                    context.close()
+                except Exception:
+                    pass
+
+    @staticmethod
+    def _build_browser_cookies(url: str, cookie: str) -> list:
+        """将 Cookie 请求头转换为浏览器上下文可持久化的 Cookie。"""
+        parsed_url = urlparse(url)
+        if not parsed_url.scheme or not parsed_url.netloc or not cookie:
+            return []
+
+        origin = f"{parsed_url.scheme}://{parsed_url.netloc}/"
+        raw_cookies = SimpleCookie()
+        try:
+            raw_cookies.load(cookie)
+        except Exception:
+            raw_cookies = SimpleCookie()
+
+        if raw_cookies and len(raw_cookies) == len([
+                item for item in str(cookie).split(";") if "=" in item
+        ]):
+            return [
+                {"name": morsel.key, "value": morsel.value, "url": origin}
+                for morsel in raw_cookies.values()
+            ]
+
+        cookies = []
+        for item in str(cookie).split(";"):
+            name, separator, value = item.strip().partition("=")
+            if separator and name:
+                cookies.append({"name": name, "value": value, "url": origin})
+        return cookies
 
     @classmethod
     def _drive_turnstile_page(cls, page, site: str, timeout: int) -> Tuple[bool, str]:
@@ -179,11 +236,11 @@ class _ISiteSigninHandler(metaclass=ABCMeta):
             if not pending and cls._is_login_page(last_html):
                 return False, "浏览器仿真后被打回登录页，Cookie已失效"
 
-            if pending:
-                if not clicked and cls._click_turnstile(page):
-                    clicked = True
-                if (not submitted and cls._submit_attendance_with_token(page)):
-                    submitted = True
+            if pending and not clicked and cls._click_turnstile(page):
+                clicked = True
+            # token 生成后 widget 可能先从 DOM 消失，提交不能依赖 pending 状态。
+            if not submitted and cls._submit_attendance_with_token(page):
+                submitted = True
 
             cls._wait_browser_page(page, 1)
 
@@ -213,7 +270,23 @@ class _ISiteSigninHandler(metaclass=ABCMeta):
                     except Exception:
                         continue
         except Exception:
-            return False
+            pass
+
+        # 部分托管控件无法从跨域 frame 内定位元素，退回到 iframe 坐标点击。
+        try:
+            elements = page.query_selector_all(
+                'iframe[src*="challenges.cloudflare.com"]'
+            )
+            for element in elements or []:
+                box = element.bounding_box()
+                if not box:
+                    continue
+                x = box["x"] + min(30, box["width"] / 2)
+                y = box["y"] + box["height"] / 2
+                page.mouse.click(x, y)
+                return True
+        except Exception:
+            pass
         return False
 
     @staticmethod
@@ -221,7 +294,9 @@ class _ISiteSigninHandler(metaclass=ABCMeta):
         """Turnstile 已签发 token 但页面回调未触发时，补交原 attendance 表单。"""
         script = """
             () => {
-                const form = document.querySelector('form#attendance');
+                const form = document.querySelector(
+                    'form#attendance, form[name="attendance"]'
+                );
                 if (!form) return false;
                 const fields = form.querySelectorAll(
                     'input[name="cf-turnstile-response"], textarea[name="cf-turnstile-response"]'
